@@ -27,8 +27,7 @@ OPUS::Tools - a collection of tools for processing OPUS corpora
 opusread OPUS/corpus/RF/xml/en-fr.xml.gz | less
 
 # convert an OPUS bitext to plain text (Moses) format
-zcat OPUS/corpus/RF/xml/en-fr.xml.gz | \
-opus2moses -d OPUS/corpus/RF/xml -e RF.en-fr.en -f RF.en-fr.fr
+zcat OPUS/corpus/RF/xml/en-fr.xml.gz | opus2moses -d OPUS/corpus/RF/xml -e RF.en-fr.en -f RF.en-fr.fr
 
 # create a multilingual corpus from the parallel RF corpus
 # using 'en' as the pivot language

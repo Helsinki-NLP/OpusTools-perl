@@ -1,0 +1,253 @@
+#!/usr/bin/perl
+#-*-perl-*-
+#
+#----------------------------------------------------------------------------------------------------
+# combine sentence alignments for several language pairs
+# using a pivot language as intermediate language for all other languages
+#----------------------------------------------------------------------------------------------------
+# USAGE: opus2mult xmldir pivot [lang-ids]*
+#
+# <xmldir> should be the path to the XML directory that contains sentence alignment files
+#          for each individual language pair (e.g. xmldir/en-fr.xml.gz)
+# <pivot> is the language ID of the pivot language (e.g. en)
+# <lang-ids> are language IDs of the other language to be combined in the multilingual corpus
+#----------------------------------------------------------------------------------------------------
+# OUTPUT: sentence alignment files for all languages together with the pivot language
+#----------------------------------------------------------------------------------------------------
+# EXAMPLE: opus2multi OPUS/corpus/RF sv de en es fr
+#          --> combine all sentence alignments via Swedish for German, English, Spanish and French
+#          --> alignment units will cover the same English sentences
+#----------------------------------------------------------------------------------------------------
+
+use strict;
+
+my $xmldir = shift @ARGV;
+my @languages = @ARGV;
+my $pivot = shift(@languages);
+
+
+# get all document pairs that align to the same pivot language
+# (we will call it English in the following)
+
+my $docs = get_common_docs($pivot,@languages);
+print "number of common aligned docs: ", scalar keys %{$docs},"\n";
+
+
+# read through the sentence alignment files again and get all links
+# for the selected document pairs
+
+my %links=();
+
+foreach my $l (@languages){
+    my $fromEnglish = 0;
+    if (-f "$xmldir/$l-$pivot.xml.gz"){
+	open F,"gzip -cd < $xmldir/$l-$pivot.xml.gz |" || die "cannot open $xmldir/$l-$pivot.xml.gz";
+    }
+    elsif (-f "$xmldir/$pivot-$l.xml.gz"){
+	open F,"gzip -cd < $xmldir/$pivot-$l.xml.gz |" || die "cannot open $xmldir/$pivot-$l.xml.gz";
+	$fromEnglish = 1;
+    }
+    else{
+	next;
+    }
+    my ($EnglishDoc,$ForeignDoc,$idx);
+    while (<F>){
+
+	if (/Doc=\"$pivot\/([^"]+)"/){
+	    $EnglishDoc=$1;
+	    if (/Doc=\"$l\/([^"]+)"/){
+		$ForeignDoc=$1;
+	    }
+	}
+
+	next if (not exists $$docs{$EnglishDoc});
+	next if ($$docs{$EnglishDoc}{$l} ne $ForeignDoc);
+
+	if (/xtargets=\"([^"]+)"/){
+	    my $link = $1;
+	    my ($src,$trg) = split(/\;/,$link);
+	    if ($fromEnglish){
+		$links{$EnglishDoc}{$l}{$src}=$trg;    # always treat English as src
+	    }
+	    else{
+		$links{$EnglishDoc}{$l}{$trg}=$src;
+	    }
+	}
+    }
+}
+
+
+
+# open
+
+
+my %fh;
+foreach my $l (@languages){
+    open $fh{$l},">$pivot-$l.xml" || die "cannot write to $pivot-$l.xml";
+    my $F = $fh{$l};
+    print $F '<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
+<cesAlign version="1.0">
+';
+}
+
+
+
+
+# get all sentences linked to the english sentence in all languages
+# get all english sentences linked to those linked sentences
+# continue until no more sentences need to be added
+
+
+foreach my $d (keys %links){
+
+    my %e2f=();
+    my %f2e=();
+
+    foreach my $l (keys %{$links{$d}}){
+	foreach my $src (keys %{$links{$d}{$l}}){
+	    my $trg = $links{$d}{$l}{$src};
+	    my @src = split(/\s+/,$src);
+	    my @trg = split(/\s+/,$trg);
+	    foreach my $s (@src){
+		foreach my $t (@trg){
+		    $e2f{$s}{$l}{$t}=1;
+		    $f2e{$t}{$l}{$s}=1;
+		}
+	    }
+	}
+    }
+
+
+    foreach my $l (@languages){
+	my $F = $fh{$l};
+	print $F "<linkGrp targType=\"s\" fromDoc=\"$pivot/$d\" ";
+	print $F "toDoc=\"$l/$$docs{$d}{$l}\">\n";
+    }
+
+    my %done=();  # hash of english sentences done already!
+
+#    foreach my $eng (sort {$a <=> $b} keys %e2f){
+    foreach my $eng (sort_ids(keys %e2f)){
+
+	next if (exists $done{$eng});
+
+	my %english=($eng => 1);  # this should contain all english sentences
+	my %foreign=();           # ... linked to these foreign sentences
+
+	my $continue=1;
+	while ($continue){
+	    $continue =0;
+
+	# get all foreign sentences linked to the english sentences in $english
+	    foreach my $e (keys %english){
+		foreach my $lang (keys %{$e2f{$e}}){
+		    foreach my $f (keys %{$e2f{$e}{$lang}}){
+			if ((not exists $foreign{$lang}) || 
+			    (not exists $foreign{$lang}{$f})){
+			    $foreign{$lang}{$f}=1;
+			    $continue=1;
+			}
+		    }
+		}
+	    }
+
+	# get all english sentences linked to those linked foreign sentences
+	    foreach my $lang (keys %foreign){
+		foreach my $f (keys %{$foreign{$lang}}){
+		    foreach my $e (keys %{$f2e{$f}{$lang}}){
+			if (not exists $english{$e}){
+			    $english{$e}=1;
+			    $continue=1;
+			}
+		    }
+		}
+	    }
+	}
+
+	## skip sentences where there is no link in
+	## any of the other languages
+	## TODO: should e have an option to enable empty links?
+	my $isEmpty=0;
+	foreach my $l (@languages){
+	    unless (keys %{$foreign{$l}}){$isEmpty=1;}
+	}
+
+	unless ($isEmpty){
+	    # my $src = join(' ',sort {$a <=> $b} keys %english);
+	    my $src = join(' ',sort_ids(keys %english));
+	    foreach my $l (@languages){
+		# my $trg = join(' ',sort {$a <=> $b} keys %{$foreign{$l}});
+		my $trg = join(' ',sort_ids(keys %{$foreign{$l}}));
+		my $F = $fh{$l};
+		print $F "<link xtargets=\"$src;$trg\" />\n";
+	    }
+	}
+
+	# don't do these sentences again!
+	foreach (keys %english){
+	    $done{$_}=1;
+	}
+    }
+
+    foreach my $l (@languages){
+	my $F = $fh{$l};
+	print $F "</linkGrp>\n";
+    }
+
+}
+
+
+foreach my $l (@languages){
+    my $F = $fh{$l};
+    print $F "</cesAlign>\n";
+    close $fh{$l};
+}
+
+
+
+sub sort_ids{
+    return map $_->[0],
+           sort { $a->[1] <=> $b->[1] or $a->[2] <=> $b->[2] }
+                map [$_, /^s?([0-9]+).?([0-9]*)/], @_;
+}
+
+
+sub get_common_docs{
+
+    my $pivot = shift(@_);
+    my @languages = @_;
+    my $docs={};
+    my %counts=();
+
+    foreach my $l (@languages){
+	if (-f "$xmldir/$l-$pivot.xml.gz"){
+	    open F,"gzip -cd < $xmldir/$l-$pivot.xml.gz |" || die "cannot open $xmldir/$l-$pivot.xml.gz";
+	}
+	elsif (-f "$xmldir/en-$l.xml.gz"){
+	    open F,"gzip -cd < $xmldir/$pivot-$l.xml.gz |" || die "cannot open $xmldir/$pivot-$l.xml.gz";
+	}
+	else{
+	    next;
+	}
+	while (<F>){
+	    if (/Doc=\"$pivot\/([^"]+)"/){
+		my $doc=$1;
+		if (/Doc=\"$l\/([^"]+)"/){
+		    $$docs{$doc}{$l}=$1;
+		    $counts{$l}++;
+		}
+	    }
+	}
+    }
+    foreach (keys %{$docs}){
+	if (keys %{$$docs{$_}} < @languages){
+	    delete $$docs{$_};
+	}
+    }
+    foreach (keys %counts){
+	print "number of documents in $_: ",$counts{$_},"\n";
+    }
+    return $docs;
+}
+

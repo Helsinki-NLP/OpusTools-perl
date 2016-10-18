@@ -23,6 +23,11 @@
 # -1 .................... 1:1 links only
 # -x max ................ max size of sentences (in nr of words)
 #
+# -r .................... process untokenized (raw) XML (no length filtering)
+#
+# -M .................... read all sentences into memory for each linked document
+#                         before extracting linked sentences (for non-monotonic links)
+#
 
 use strict;
 use XML::Parser;
@@ -30,10 +35,10 @@ use FileHandle;
 use File::Basename;
 
 
-use vars qw($opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m);
+use vars qw($opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m $opt_M);
 use Getopt::Std;
 
-getopts('s:t:d:n:ie:f:hp:l1x:rm');
+getopts('s:t:d:n:ie:f:hp:l1x:rmM');
 
 if ($opt_h){
     print <<"EOH";
@@ -56,6 +61,7 @@ if ($opt_h){
  -f src-data-file ...... output file for target language data (default = trg)
  -1 .................... extract 1:1 sentence alignments only
  -x max ................ maximum size of selected sentences (default=80)
+ -r .................... process untokenized (raw) XML (no length filtering)
 
 EOH
     exit;
@@ -255,6 +261,29 @@ sub ParseSentences{
 }
 
 
+## parse all sentences and store them in a container
+## - this is useful if the sentences are scrambled and IDs don't appear in monotonic order
+##   in the same way they appear in the sentence alignment file
+
+sub ParseAllSentences{
+    my ($handle,$fh,$container,$wordcounter)=@_;
+
+    while (<$fh>){
+	eval { $handle->parse_more($_); };
+	if ($@){
+	    warn $@;
+	    print STDERR $_;
+	}
+	if (exists $handle->{CLOSEDSID}){
+	    $$container{$handle->{CLOSEDSID}} = $handle->{OUTSTR};
+	    $$wordcounter{$handle->{CLOSEDSID}} = $handle->{NRWORDS};
+	    $handle->{OUTSTR} = '';
+	    $handle->{NRWORDS} = 0;
+	}
+    }
+}
+
+
 
 ##-------------------------------------------------------------------------
 ## XML parser handlers for sentence alignment parser
@@ -267,11 +296,25 @@ sub ParseSentences{
 sub AlignTagStart{
     my ($p,$e,%a)=@_;
 
+
     if ($e eq 'linkGrp'){
 	if ($opt_p){
 	    print P "## $a{fromDoc}\t$a{toDoc}\n";
 	}
-	return &OpenCorpora($a{fromDoc},$a{toDoc});
+	my $success = &OpenCorpora($a{fromDoc},$a{toDoc});
+
+	## optional: parse the whole source and target documents
+	##           and store all data
+	if ($opt_M){
+	    ## data containers 
+	    %{$$p{SrcSents}}=();
+	    %{$$p{TrgSents}}=();
+	    %{$$p{SrcWordCount}}=();
+	    %{$$p{TrgWordCount}}=();
+	    &ParseAllSentences($SrcHandler,$SRC,$$p{SrcSents},$$p{SrcWordCount});
+	    &ParseAllSentences($TrgHandler,$TRG,$$p{TrgSents},$$p{TrgWordCount});
+	}
+	return $success;
     }
 
     if ($e eq 'link'){
@@ -287,8 +330,29 @@ sub AlignTagStart{
 		$SrcHandler->{OUTSTR}='';   # reset output string
 		$TrgHandler->{OUTSTR}='';
 
-		&ParseSentences($src,$SrcHandler,$SRC);
-		&ParseSentences($trg,$TrgHandler,$TRG);
+		## (a) retrieve sentences from memory
+		if ($opt_M){
+		    $SrcHandler->{NRWORDS} = 0;
+		    $TrgHandler->{NRWORDS} = 0;
+		    my @ids=split(/\s+/,$src);
+		    foreach (@ids){
+			$SrcHandler->{OUTSTR} .= $$p{SrcSents}{$_}.' ';
+			$SrcHandler->{NRWORDS} += $$p{SrcWordCount}{$_};
+		    }
+		    @ids=split(/\s+/,$trg);
+		    foreach (@ids){
+			$TrgHandler->{OUTSTR} .= $$p{TrgSents}{$_}.' ';
+			$TrgHandler->{NRWORDS} += $$p{TrgWordCount}{$_};
+		    }
+		    $SrcHandler->{OUTSTR}-~s/\s*$//;
+		    $TrgHandler->{OUTSTR}-~s/\s*$//;
+		}
+
+		## (b) read sentences from file
+		else{
+		    &ParseSentences($src,$SrcHandler,$SRC);
+		    &ParseSentences($trg,$TrgHandler,$TRG);
+		}
 
 		unless ($opt_r){
 		    # skip if no words found
@@ -381,7 +445,7 @@ sub XmlTagStart{
 	return 1;
     }
     if ($e eq 'w'){
-	if ($p->{OPENSID} eq $p->{IDS}->[0]){
+	if ($opt_M || ($p->{OPENSID} eq $p->{IDS}->[0])){
 	    $p->{OPENW} = 1;
 	    %{$p->{WATTR}} = %a;
 	    $p->{WORD}='';
@@ -397,7 +461,7 @@ sub XmlTagStart{
 sub XmlChar{
     my ($p,$c)=@_;
     if ($p->{OPENW} || $opt_r){
-	if ($p->{OPENSID} eq $p->{IDS}->[0]){
+	if ($opt_M || ($p->{OPENSID} eq $p->{IDS}->[0])){
 #	    $c=~tr/| \n/___/;
 	    $p->{WATTR}->{word}.=$c;
 	    $p->{WATTR}->{word}.=' ' if ($opt_r);
@@ -421,12 +485,12 @@ sub XmlTagEnd{
 	if ($opt_r){
             unless ($p->{NRWORDS}){
                 $p->{OUTSTR} .= $p->{WATTR}->{word}.' ';
-                $p->{WATTR}->{word} = '';
             }
+	    $p->{WATTR}->{word} = '';
         }
     }
     elsif ($e eq 'w'){
-	if ($p->{OPENSID} eq $p->{IDS}->[0]){
+	if ($opt_M || ($p->{OPENSID} eq $p->{IDS}->[0])){
 	    $p->{OPENW} = 0;
 	    my @factors=();
 	    foreach my $f (@{$p->{FACTORS}}){

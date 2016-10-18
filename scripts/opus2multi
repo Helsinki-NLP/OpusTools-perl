@@ -1,25 +1,70 @@
 #!/usr/bin/perl
 #-*-perl-*-
 #
-#----------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # combine sentence alignments for several language pairs
 # using a pivot language as intermediate language for all other languages
-#----------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 # USAGE: opus2mult xmldir pivot [lang-ids]*
 #
-# <xmldir> should be the path to the XML directory that contains sentence alignment files
+# <xmldir> should be the path to the XML directory that contains 
+#          sentence alignment files
 #          for each individual language pair (e.g. xmldir/en-fr.xml.gz)
 # <pivot> is the language ID of the pivot language (e.g. en)
-# <lang-ids> are language IDs of the other language to be combined in the multilingual corpus
-#----------------------------------------------------------------------------------------------------
-# OUTPUT: sentence alignment files for all languages together with the pivot language
-#----------------------------------------------------------------------------------------------------
+# <lang-ids> are language IDs of the other language to be combined 
+#            in the multilingual corpus
+#------------------------------------------------------------------------------
+# OUTPUT: sentence alignment files for all languages together 
+#         with the pivot language
+#------------------------------------------------------------------------------
 # EXAMPLE: opus2multi OPUS/corpus/RF sv de en es fr
-#          --> combine all sentence alignments via Swedish for German, English, Spanish and French
+#          --> combine all sentence alignments via Swedish 
+#              for German, English, Spanish and French
 #          --> alignment units will cover the same English sentences
-#----------------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 use strict;
+
+use vars qw($opt_s $opt_h);
+use Getopt::Std;
+
+getopts('hs:t:');
+
+if ($opt_h){
+    print <<"EOH";
+
+ opus2multi [OPTIONS] xmldir pivot [lang-ids]*
+
+------------------------------------------------------------------------------
+ combine sentence alignments for several language pairs
+ using a pivot language as intermediate language for all other languages
+------------------------------------------------------------------------------
+
+ <xmldir> should be the path to the XML directory that contains 
+          sentence alignment files
+          for each individual language pair (e.g. xmldir/en-fr.xml.gz)
+ <pivot> is the language ID of the pivot language (e.g. en)
+ <lang-ids> are language IDs of the other language to be combined 
+            in the multilingual corpus
+
+------------------------------------------------------------------------------
+ OUTPUT: sentence alignment files for all languages together 
+         with the pivot language
+------------------------------------------------------------------------------
+ EXAMPLE: opus2multi OPUS/corpus/RF/xml sv de en es fr
+          --> combine all sentence alignments via Swedish 
+              for German, English, Spanish and French
+          --> alignment units will cover the same English sentences
+------------------------------------------------------------------------------
+
+OPTIONS:
+
+ -s nr .............. max number of sentences in an alignment unit
+ -h ................. this help
+
+EOH
+    exit;
+}
 
 my $xmldir = shift @ARGV;
 my @languages = @ARGV;
@@ -41,10 +86,12 @@ my %links=();
 foreach my $l (@languages){
     my $fromEnglish = 0;
     if (-f "$xmldir/$l-$pivot.xml.gz"){
-	open F,"gzip -cd < $xmldir/$l-$pivot.xml.gz |" || die "cannot open $xmldir/$l-$pivot.xml.gz";
+	open F,"gzip -cd < $xmldir/$l-$pivot.xml.gz |" || 
+	    die "cannot open $xmldir/$l-$pivot.xml.gz";
     }
     elsif (-f "$xmldir/$pivot-$l.xml.gz"){
-	open F,"gzip -cd < $xmldir/$pivot-$l.xml.gz |" || die "cannot open $xmldir/$pivot-$l.xml.gz";
+	open F,"gzip -cd < $xmldir/$pivot-$l.xml.gz |" || 
+	    die "cannot open $xmldir/$pivot-$l.xml.gz";
 	$fromEnglish = 1;
     }
     else{
@@ -168,9 +215,19 @@ foreach my $d (keys %links){
 	## skip sentences where there is no link in
 	## any of the other languages
 	## TODO: should e have an option to enable empty links?
+	## if opt_s: skip even sentences where there are more
+	##           sentences involved in any language
 	my $isEmpty=0;
 	foreach my $l (@languages){
 	    unless (keys %{$foreign{$l}}){$isEmpty=1;}
+	    if (defined($opt_s)){
+		if (scalar keys %{$foreign{$l}} > $opt_s){
+		    $isEmpty=1;
+		}
+		if (scalar keys %english > $opt_s){
+		    $isEmpty=1;
+		}
+	    }
 	}
 
 	unless ($isEmpty){

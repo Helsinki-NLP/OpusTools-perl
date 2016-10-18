@@ -1,4 +1,8 @@
 
+
+- fixed problem with option -r on tokenized text
+
+
 * v0.01		Thu Nov  7 20:30:15 CET 2013
 
 - initial release

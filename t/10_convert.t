@@ -18,10 +18,10 @@ is( compare( "sv-en.xml", "$DATA/sv-en.xml" ),0, "multilingual corpus (sv-en)" )
 is( compare( "sv-es.xml", "$DATA/sv-es.xml" ),0, "multilingual corpus (sv-es)" );
 is( compare( "sv-fr.xml", "$DATA/sv-fr.xml" ),0, "multilingual corpus (sv-fr)" );
 
-system("$SCRIPTS/opus2moses -d $DATA -e test.sv1 -f test.de < sv-de.xml $null");
-system("$SCRIPTS/opus2moses -d $DATA -e test.sv2 -f test.en < sv-en.xml $null");
-system("$SCRIPTS/opus2moses -d $DATA -e test.sv3 -f test.es < sv-es.xml $null");
-system("$SCRIPTS/opus2moses -d $DATA -e test.sv4 -f test.fr < sv-fr.xml $null");
+system("$SCRIPTS/opus2moses -r -d $DATA -e test.sv1 -f test.de < sv-de.xml $null");
+system("$SCRIPTS/opus2moses -r -d $DATA -e test.sv2 -f test.en < sv-en.xml $null");
+system("$SCRIPTS/opus2moses -r -d $DATA -e test.sv3 -f test.es < sv-es.xml $null");
+system("$SCRIPTS/opus2moses -r -d $DATA -e test.sv4 -f test.fr < sv-fr.xml $null");
 
 is( compare( "test.sv1", "test.sv2" ),0, "identical source (sv-de & sv-en)" );
 is( compare( "test.sv1", "test.sv3" ),0, "identical source (sv-de & sv-es)" );

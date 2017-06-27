@@ -1,6 +1,6 @@
 #-*-perl-*-
 #---------------------------------------------------------------------------
-# Copyright (C) 2004-2013 Joerg Tiedemann
+# Copyright (C) 2004-2017 Joerg Tiedemann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ OPUS::Tools - a collection of tools for processing OPUS corpora
 =head1 SYNOPSIS
 
 # read bitexts (print aligned sentences to screen in readable format)
-opusread OPUS/corpus/RF/xml/en-fr.xml.gz | less
+opus-read OPUS/corpus/RF/xml/en-fr.xml.gz | less
 
 # convert an OPUS bitext to plain text (Moses) format
 zcat OPUS/corpus/RF/xml/en-fr.xml.gz | opus2moses -d OPUS/corpus/RF/xml -e RF.en-fr.en -f RF.en-fr.fr

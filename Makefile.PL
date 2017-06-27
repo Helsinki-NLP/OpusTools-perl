@@ -10,12 +10,12 @@ name          'OPUS-Tools';
 license       'gpl';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
-version       '0.01';
+version       '0.02';
 
-install_script 'scripts/opusread';
+install_script 'scripts/opus-read';
+install_script 'scripts/opus-index';
 install_script 'scripts/opus2moses';
 install_script 'scripts/opus2multi';
-install_script 'scripts/opusindex';
 
 requires 'Cwd'             => 0;
 requires 'Test::More'      => 0;

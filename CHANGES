@@ -1,5 +1,8 @@
 
+* v0.02		Tue Jun 27 11:24:58 EEST 2017
 
+- renamed opusread to opus-read and opusindex to opus-index
+- copies various helper scripts
 - fixed problem with option -r on tokenized text
 
 

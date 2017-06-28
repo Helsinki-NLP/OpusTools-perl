@@ -20,39 +20,39 @@
 
 =head1 NAME
 
-opusread - read sentence alignment in XCES align format
+opus-read - read sentence alignment in XCES align format
 
 =head1 SYNOPSIS
 
  # read sentence alignments and print aligned sentences
- opusread align-file.xml
+ opus-read align-file.xml
 
  # print alignments with alignment certainty > LinkThr=0
- opusread -c 0 align-file.xml
+ opus-read -c 0 align-file.xml
 
  # print alignments with max 2 source sentences and 3 target sentences
- opusread -S 2 -T 3 align-file.xml
+ opus-read -S 2 -T 3 align-file.xml
 
  # print aligned sentences marked as 'de' (source) and 'en' (target)
  # (this only works if sentences are marked with languages:
  #  for example, in the German XML file: <s lang="de">...</s>)
- opusread -s de -t en align-file.xml
+ opus-read -s de -t en align-file.xml
 
  # wrap aligned sentences in simple HTML
- opusread -h align-file.xml
+ opus-read -h align-file.xml
 
  # print max 10 alignments
- opusread -m 10 align-file.xml
+ opus-read -m 10 align-file.xml
 
  # specify home directory of aligned XML files
- opusread -d /path/to/xml/files align-file.xml
+ opus-read -d /path/to/xml/files align-file.xml
 
  # print XCES align format of all 1:1 sentence alignments
- opusread -S 1 -T 1 -l align-file.xml
+ opus-read -S 1 -T 1 -l align-file.xml
 
 =head1 USAGE
 
- opusread [OPTIONS] align-file.xml
+ opus-read [OPTIONS] align-file.xml
 
 =head1 OPTIONS
 
@@ -68,7 +68,7 @@ opusread - read sentence alignment in XCES align format
 
 =head1 DESCRIPTION
 
-C<opusread> is a simple script to read sentence alignments stored in XCES align format and prints the aligned sentences to STDOUT. It requires monolingual alignments (ascending order, no crossing links) of sentences in linked XML files. Linked XML files are specified in the C<toDoc> and <fromDoc> attributes (see below).
+C<opus-read> is a simple script to read sentence alignments stored in XCES align format and prints the aligned sentences to STDOUT. It requires monolingual alignments (ascending order, no crossing links) of sentences in linked XML files. Linked XML files are specified in the C<toDoc> and <fromDoc> attributes (see below).
 
  <cesAlign version="1.0">
   <linkGrp targType="s" toDoc="source1.xml" fromDoc="target1.xml">
@@ -79,7 +79,7 @@ C<opusread> is a simple script to read sentence alignments stored in XCES align 
 
 Several parameters can be set to filter the alignments and to print only certain types of alignments.
 
-C<opusread> can also be used to filter the XCES alignment files and to print the remaining links in the same XCES align format. Use the C<-l> flag to enable this mode.
+C<opus-read> can also be used to filter the XCES alignment files and to print the remaining links in the same XCES align format. Use the C<-l> flag to enable this mode.
 
 =head1 See also
 
@@ -93,6 +93,7 @@ L<https://bitbucket.org/tiedemann/uplug>
 
 use strict;
 use FindBin qw($Bin);
+use File::Basename qw(dirname basename);
 
 my $html=0;
 my $max=0;
@@ -102,8 +103,9 @@ my $MaxSrc=undef;
 my $MaxTrg=undef;
 my $LinkThr=undef;
 my $FilterMode=0;    # filter-mode: print alignment XML
+my $SkipDocs=undef;  # RE pattern for doc's to be skipped when reading
 
-my $dir='xml';                   # extra directory to check for from/toDoc
+my $dir=undef;
 while ($ARGV[0]=~/^\-/){
     my $o=shift(@ARGV);
     if ($o=~/^\-h/){$html=1;}
@@ -114,10 +116,12 @@ while ($ARGV[0]=~/^\-/){
     elsif ($o=~/^\-S/){$MaxSrc=shift @ARGV;}
     elsif ($o=~/^\-T/){$MaxTrg=shift @ARGV;}
     elsif ($o=~/^\-c/){$LinkThr=shift @ARGV;}
+    elsif ($o=~/^\-N/){$SkipDocs=shift @ARGV;}
     elsif ($o=~/^\-l/){$FilterMode=1;}
 }
 
 my $ALIGN=shift(@ARGV);
+$dir = dirname($ALIGN) unless ($dir);
 
 my $srcdoc='';
 my $trgdoc='';
@@ -164,6 +168,10 @@ while (<F>){
     if (/toDoc=\"([^\"]+)\"/){
 	if ($trgdoc ne $1){
 	    $trgdoc=$1;
+	    if (defined $SkipDocs){
+		next if ($srcdoc=~/$SkipDocs/);
+		next if ($trgdoc=~/$SkipDocs/);
+	    }
 	    if (not $firstTrg){close TRG;}
 	    if ((not -e $trgdoc) and (-e "$trgdoc.gz")){
 		$trgdoc="$trgdoc.gz";
@@ -190,6 +198,10 @@ while (<F>){
 		else{print "================================\n";}
 	    }
 	}
+    }
+    if (defined $SkipDocs){
+	next if ($srcdoc=~/$SkipDocs/);
+	next if ($trgdoc=~/$SkipDocs/);
     }
     if (/xtargets=\"([^\"]*)\s*\;\s*([^\"]*)\"/){
 	if (defined $LinkThr){

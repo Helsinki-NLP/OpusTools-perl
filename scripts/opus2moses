@@ -68,7 +68,7 @@ EOH
 }
 
 
-my $CORPUSHOME   = $opt_d || $ENV{HOME}.'/projects/OPUS/corpus/Europarl3';
+my $CORPUSHOME   = $opt_d || '.';
 my $SRCFACTORSTR = $opt_s || "word";
 my $TRGFACTORSTR = $opt_t || "word";
 
@@ -114,6 +114,10 @@ if ($opt_p){
     open P,">$opt_p" || warn "cannot open $opt_p ...\n";
 }
 
+
+my $ALIGNHOME = '.';
+$ALIGNHOME = dirname($ARGV[0]) if (@ARGV);
+
 ## use '>' as input delimiter when reading (usually end of XML tag)
 
 $/='>';
@@ -152,6 +156,7 @@ if ($opt_p){
 sub OpenCorpora{
     my ($srcfile,$trgfile)=@_;
 
+    # the file may be zipped and the path is wrong in the alignfile
     if ((! -e "$CORPUSHOME/$srcfile") && (-e "$CORPUSHOME/$srcfile.gz")){
 	$srcfile.='.gz';
     }
@@ -159,6 +164,27 @@ sub OpenCorpora{
 	$trgfile.='.gz';
     }
 
+    # try ALIGNHOME
+    if (! -e "$CORPUSHOME/$srcfile"){
+	if (-e "$ALIGNHOME/$srcfile"){
+	    $CORPUSHOME = $ALIGNHOME;
+	}
+	elsif (-e "$ALIGNHOME/$srcfile.gz"){
+	    $CORPUSHOME = $ALIGNHOME;
+	    $srcfile.='.gz';
+	}
+    }
+    if (! -e "$CORPUSHOME/$trgfile"){
+	if (-e "$ALIGNHOME/$trgfile"){
+	    $CORPUSHOME = $ALIGNHOME;
+	}
+	elsif (-e "$ALIGNHOME/$trgfile.gz"){
+	    $CORPUSHOME = $ALIGNHOME;
+	    $trgfile.='.gz';
+	}
+    }
+
+    # try to remove the xml subdir
     if ((! -e "$CORPUSHOME/$srcfile") && ($srcfile=~/xml\//)){	
 	$srcfile=~s/xml\///;
 	return OpenCorpora($srcfile,$trgfile);
@@ -181,6 +207,9 @@ sub OpenCorpora{
 	    return 0;
 	}
     }
+
+    return 0 unless (-e "$CORPUSHOME/$srcfile");
+    return 0 unless (-e "$CORPUSHOME/$trgfile");
 
     print STDERR "open bitext $srcfile <-> $trgfile\n";
 

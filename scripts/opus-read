@@ -26,6 +26,10 @@ opus-read - read sentence alignment in XCES align format
 
  # read sentence alignments and print aligned sentences
  opus-read align-file.xml
+ opus-read align-file.xml.gz
+ opus-read corpusname/lang-pair
+ opus-read -d corpusname lang-pair
+ opus-read -d corpusname -s srclang -t trglang
 
  # print alignments with alignment certainty > LinkThr=0
  opus-read -c 0 align-file.xml
@@ -123,11 +127,42 @@ while ($ARGV[0]=~/^\-/){
 my $ALIGN=shift(@ARGV);
 $dir = dirname($ALIGN) unless ($dir);
 
+
+# be a bit more flexible with directories and filenames
+unless(-d $dir){
+    if (-d "/proj/nlpl/datasets/OPUS/corpus/$dir"){
+	$dir = "/proj/nlpl/datasets/OPUS/corpus/$dir/xml";
+    }
+    elsif (-d "/projects/nlpl/datasets/OPUS/corpus/$dir"){
+	$dir = "/projects/nlpl/datasets/OPUS/corpus/$dir/xml";
+    }
+    elsif (-d "/proj/OPUS/corpus/$dir"){
+	$dir = "/proj/OPUS/corpus/$dir/xml";
+    }
+    elsif (-d "/home/opus/OPUS/corpus/$dir"){
+	$dir = "/home/opus/OPUS/corpus/$dir/xml";
+    }
+}
+
+# find the alignment file
+unless($ALIGN){
+    if (-f "$dir/$SrcID-$TrgID.xml.gz"){ $ALIGN = "$dir/$SrcID-$TrgID.xml.gz"; }
+    elsif (-f "$dir/$TrgID-$SrcID.xml.gz"){ $ALIGN = "$dir/$TrgID-$SrcID.xml.gz"; }
+}
+unless(-f $ALIGN || -f "$ALIGN.gz"){
+    my $base = basename($ALIGN);
+    if (-f "$dir/$base"){ $ALIGN = "$dir/$base"; }
+    elsif (-f "$dir/$base.gz"){ $ALIGN = "$dir/$base.gz"; }
+    elsif (-f "$dir/$base.xml.gz"){ $ALIGN = "$dir/$base.xml.gz"; }
+}
+
+
+
 my $srcdoc='';
 my $trgdoc='';
 
-if ((not -e "$ALIGN") and (-e "$ALIGN.gz")){$ALIGN="$ALIGN.gz";}
-if (not -e $ALIGN){die "Alignment file $ALIGN does not exist!\n";}
+if ((not -f "$ALIGN") and (-f "$ALIGN.gz")){$ALIGN="$ALIGN.gz";}
+if (not -f $ALIGN){die "Alignment file $ALIGN does not exist!\n";}
 
 if ($ALIGN=~/\.gz/){
     open F,"gzip -cd <$ALIGN |";

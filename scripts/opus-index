@@ -42,9 +42,9 @@ use File::Basename;
 use XML::Parser;
 use Encode;
 
-use vars qw($opt_a $opt_i $opt_d $opt_r $opt_t $opt_c $opt_v $opt_x $opt_o $opt_y $opt_f $opt_m $opt_s $opt_u $opt_p);
+use vars qw($opt_a $opt_i $opt_d $opt_r $opt_t $opt_c $opt_v $opt_x $opt_o $opt_y $opt_f $opt_m $opt_s $opt_u $opt_p $opt_e);
 use Getopt::Std;
-getopts('a:d:r:t:c:x:voyf:m:si:u:p:');
+getopts('a:d:r:t:c:x:voyf:m:si:u:p:e');
 
 
 # script arguments
@@ -57,6 +57,7 @@ my $CWBREG     = $opt_r || 'reg';       # directory of CWB registry
 my $OVERWRITE  = $opt_o || 0;           # overwrite old CWB data
 my $ASSUME_YES = $opt_y || 0;           # assume yes to overwrite
 my $VERBOSE    = $opt_v || 0;           # verbose output
+my $LANGENC    = $opt_e;                # use language-specific char encoding (not utf8)
 
 my @LANG       = @ARGV;                 # languages to be processed (sub-dirs!)
 my @ALGLANG    = @LANG;
@@ -588,6 +589,7 @@ sub FindDocuments{
 #----------------------------------------------------------------------
 
 sub GetLangEncoding{
+    return 'utf-8' unless ($LANGENC);
     my $lang = shift;
     return $LANGCODES{$lang} if (exists $LANGCODES{$lang});
     return 'iso-8859-1';

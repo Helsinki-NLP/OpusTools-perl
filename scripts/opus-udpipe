@@ -29,7 +29,7 @@ my $lang         = $opt_l || 'en';
 my $inputFormat  = 'horizontal';
 my $outputFormat = 'conllu';
 
-my $ModelDir = $opt_d;
+my $ModelDir = $opt_m;
 my $version  = $opt_v;
 my $host = `hostname -d`;
 
@@ -40,7 +40,7 @@ my $host = `hostname -d`;
 if (exists $ENV{UDPIPE_MODELS}){
     $ModelDir = $ENV{UDPIPE_MODELS};
     my @mod = glob("$ModelDir/*-ud-*.udpipe");
-    if ($eng[0] =~/ud-(.*).udpipe$/){
+    if ($mod[0] =~/ud-(.*).udpipe$/){
 	$version = $1;
     }
     else{

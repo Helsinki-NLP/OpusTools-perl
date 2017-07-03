@@ -1,0 +1,214 @@
+#!/bin/env perl
+#-*-perl-*-
+#
+# run OPUS raw data through UDPipe
+#
+# -l <langid> ......... language ID (ISO639-1)
+# -m <modeldir> ....... path to udpipe models
+# -v <version> ........ model version
+#
+
+use warnings;
+use strict;
+use open qw(:std :utf8);
+
+use Getopt::Std;
+use XML::Parser;
+use XML::Writer;
+use HTML::Entities qw/encode_entities/;
+
+use Ufal::UDPipe;
+
+
+our ($opt_l, $opt_m, $opt_v);
+
+getopts('l:m:v:');
+
+my $lang         = $opt_l || 'en';
+# my $inputFormat  = 'horizontal';
+my $inputFormat  = 'horizontal';
+my $outputFormat = 'conllu';
+
+my $ModelDir = $opt_d;
+my $version  = $opt_v;
+my $host = `hostname -d`;
+
+
+# hard-coded path for model dir and version!
+# (in case modeldir and version are not given on command-line)
+
+if (exists $ENV{UDPIPE_MODELS}){
+    $ModelDir = $ENV{UDPIPE_MODELS};
+    my @mod = glob("$ModelDir/*-ud-*.udpipe");
+    if ($eng[0] =~/ud-(.*).udpipe$/){
+	$version = $1;
+    }
+    else{
+	$version = '2.0-conll17-170315'
+    }
+}
+elsif ($host=~/csc/){
+    $version = '2.0-conll17-170315' unless ($version);
+    $ModelDir = "/proj/nlpl/software/udpipe/latest/ud-2.0-conll17";
+}
+elsif ($host=~/uio/){
+    $version = '2.0-conll17-170315' unless ($version);
+    $ModelDir = "/projects/nlpl/software/udpipe/latest/ud-2.0-conll17";
+}
+else{
+    my $OpusTools = '/home/joerg/OPUS/tools';
+    $version = '1.2-160523' unless ($version);
+    $ModelDir = "$OpusTools/public/preprocess/udpipe/udpipe-ud-$version";
+}
+
+
+
+
+my %UDmodels = (
+# ancient-greek-proiel-ud-$version.udpipe
+# ancient-greek-ud-$version.udpipe
+    ar => "arabic-ud-$version.udpipe",
+    eu => "basque-ud-$version.udpipe",
+    bg => "bulgarian-ud-$version.udpipe",
+    hr => "croatian-ud-$version.udpipe",
+    cs => "czech-ud-$version.udpipe",
+    da => "danish-ud-$version.udpipe",
+    nl => "dutch-ud-$version.udpipe",
+    en => "english-ud-$version.udpipe",
+    et => "estonian-ud-$version.udpipe",
+# finnish-ftb-ud-$version.udpipe",
+    ft => "finnish-ud-$version.udpipe",
+    fr => "french-ud-$version.udpipe",
+    de => "german-ud-$version.udpipe",
+# gothic-ud-$version.udpipe
+    el => "greek-ud-$version.udpipe",
+    he => "hebrew-ud-$version.udpipe",
+    hi => "hindi-ud-$version.udpipe",
+    hu => "hungarian-ud-$version.udpipe",
+    id => "indonesian-ud-$version.udpipe",
+    ga => "irish-ud-$version.udpipe",
+    it => "italian-ud-$version.udpipe",
+# latin-itt-ud-$version.udpipe
+# latin-proiel-ud-$version.udpipe
+    la => "latin-ud-$version.udpipe",
+    nb => "norwegian-ud-$version.udpipe",
+# old-church-slavonic-ud-$version.udpipe
+    fa => "persian-ud-$version.udpipe",
+    pl => "polish-ud-$version.udpipe",
+    pt => "portuguese-ud-$version.udpipe",
+    ro => "romanian-ud-$version.udpipe",
+    sl => "slovenian-ud-$version.udpipe",
+    es => "spanish-ud-$version.udpipe",
+    sv => "swedish-ud-$version.udpipe",
+    ta => "tamil-ud-$version.udpipe"
+    );
+
+my $modelFile = $ModelDir.'/'.$UDmodels{$lang};
+
+print STDERR "Loading model: ";
+my $model = Ufal::UDPipe::Model::load($modelFile);
+$model or die "Cannot load model from file '$modelFile'\n";
+print STDERR "done\n";
+
+my $tokenizer = $model->newTokenizer($Ufal::UDPipe::Model::DEFAULT);
+my $conllu_output = Ufal::UDPipe::OutputFormat::newOutputFormat($outputFormat);
+my $sentence = Ufal::UDPipe::Sentence->new();
+
+# my $pipeline = Ufal::UDPipe::Pipeline->new($model,$inputFormat, 
+#					   $Ufal::UDPipe::Pipeline::DEFAULT, 
+#					   $Ufal::UDPipe::Pipeline::DEFAULT, 
+#					   $outputFormat);
+
+my $error = Ufal::UDPipe::ProcessingError->new();
+
+
+my $XmlParser = new XML::Parser(Handlers => {Start => \&XmlStart,
+					     End => \&XmlEnd,
+					     Char => \&XmlChar});
+
+my $XmlWriter = new XML::Writer( DATA_MODE=>1, 
+				 DATA_INDENT=>2, 
+				 ENCODING=>'utf-8');
+my $XmlReader = $XmlParser->parse_start;
+
+$XmlWriter->xmlDecl();
+my $sentCount=0;
+
+while (<>){
+    next if (/<\?xml\s/);
+    eval { $XmlReader->parse_more($_); };
+    if ($@){
+	warn $@;
+	print STDERR $_;
+    }
+}
+
+
+sub XmlStart{
+    my ($p,$e,%a) = @_;
+    if ($e eq 's'){
+	$$p{SENT} = '';
+    }
+    $XmlWriter->startTag($e,%a);
+}
+
+sub XmlEnd{
+    my ($p,$e) = @_;
+    if ($e eq 's'){
+
+	$sentCount++;
+	if (! ($sentCount % 100)){
+	    print STDERR '.';
+	}
+	if (! ($sentCount % 5000)){
+	    print STDERR $sentCount,"\n";
+	}
+
+	$tokenizer->setText($$p{SENT});
+	delete $$p{SENT};
+	my $nrSent=0;
+	while ($tokenizer->nextSentence($sentence)) {
+
+	    $model->tag($sentence, $Ufal::UDPipe::Model::DEFAULT);
+	    $model->parse($sentence, $Ufal::UDPipe::Model::DEFAULT);
+	    my $processed = $conllu_output->writeSentence($sentence);
+
+	# my $processed = $pipeline->process($$p{SENT}, $error);
+	# $error->occurred() and die "An error occurred in run_udpipe: " . $error->{message};
+
+	    ## just in case the tokeniser found additional sentence breaks
+	    if ($nrSent){
+		$XmlWriter->emptyTag('sentBreak');
+	    }
+	    $nrSent++;
+
+	
+	    my @lines = split(/\n/,$processed);
+	    foreach my $line (@lines){
+		my ($id,$word,$lemma,$upos,$xpos,$feats,$head,$deprel,$deps,$misc) 
+		    = split(/\t/,$line);
+		## TODO: do something more clever with multi-span tokens
+		next if ($id=~/\-/);
+		my %attr = (id => $id);
+		$attr{lemma}=$lemma unless ($lemma eq '_');
+		$attr{upos}=$upos unless ($upos eq '_');
+		$attr{xpos}=$upos unless ($xpos eq '_');
+		$attr{feats}=$feats unless ($feats eq '_');
+		$attr{head}=$head unless ($head eq '_');
+		$attr{deprel}=$deprel unless ($deprel eq '_');
+		$attr{secdep}=$deps unless ($deps eq '_');
+		$attr{misc}=$misc unless ($misc eq '_');
+		$XmlWriter->startTag('w',%attr);
+		$XmlWriter->characters($word);
+		$XmlWriter->endTag('w');
+	    }
+	}
+    }
+    $XmlWriter->endTag($e);
+}
+
+sub XmlChar{
+    my ($p,$c) = @_;
+    $$p{SENT}.=$c if (exists $$p{SENT});
+}
+

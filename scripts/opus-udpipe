@@ -185,6 +185,7 @@ sub XmlEnd{
 	
 	    my @lines = split(/\n/,$processed);
 	    foreach my $line (@lines){
+		next if ($line=~/^\#/);
 		my ($id,$word,$lemma,$upos,$xpos,$feats,$head,$deprel,$deps,$misc) 
 		    = split(/\t/,$line);
 		## TODO: do something more clever with multi-span tokens

@@ -1,12 +1,66 @@
 #!/bin/env perl
 #-*-perl-*-
 #
-# run OPUS raw data through UDPipe
 #
-# -l <langid> ......... language ID (ISO639-1)
-# -m <modeldir> ....... path to udpipe models
-# -v <version> ........ model version
-#
+
+=head1 NAME
+
+opus-udpipe
+
+=head1 SYNOPSIS
+
+ # run OPUS raw data through English UDPipe
+ opus-udpipe -l en < raw/english.xml > parsed.xml
+
+=head1 OPTIONS:
+
+ -l <langid> ......... language ID (ISO639-1)
+ -m <modeldir> ....... path to udpipe models
+ -v <version> ........ model version
+
+
+ -s srcfactors ......... specify source language factors besides surface words
+ -t trgfactors ......... the same for the target language (separated by ':')
+                         factors should be attributes of <w> tags!!
+                         (except 'word' which is the word itself)
+ -d dir ................ home directory of the OPUS subcorpus
+ -n file-pattern ....... skip bitext files that match pattern (e.g. ep-00-1*)
+ -i .................... inverse selection (only files matching file pattern)
+ -e src-data-file ...... output file for source language data (default = src)
+ -f src-data-file ...... output file for target language data (default = trg)
+
+ -p sentence-pair-file . stores sentence ID pairs of the extracted pairs
+ -l .................... convert to lower case
+ -1 .................... 1:1 links only
+ -x max ................ max size of sentences (in nr of words)
+
+ -r .................... process untokenized (raw) XML (no length filtering)
+
+ -M .................... read all sentences into memory for each linked document
+                         before extracting linked sentences (for non-monotonic links)
+
+=head1 LICENSE
+
+ ---------------------------------------------------------------------------
+ Copyright (C) 2004-2017 Joerg Tiedemann  <jorg.tiedemann@helsinki.fi>
+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ ---------------------------------------------------------------------------
+
+=cut
+
 
 use warnings;
 use strict;

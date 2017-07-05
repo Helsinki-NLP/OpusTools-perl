@@ -22,7 +22,13 @@ opus-index
    -i depth .. min depth for finding alignment file (0 otherwise)
    -u pattern  allowed structural patterns
    -p pattern  allowed positional patterns
-
+   -U pattern  disallowed structural patterns
+   -P pattern  disallowed positional patterns
+   -M ........ skip creating monolingual index files
+   -A ........ skip creating alignment files
+   -k ........ keep temp file for cwb encoding
+   -e enc .... use character encoding enc
+   -C ........ convert only (don't run indexing and registring)
 
 =head1 LICENSE
 
@@ -46,6 +52,7 @@ opus-index
 
 =cut
 
+
 use strict;
 
 use FindBin qw($Bin);
@@ -54,9 +61,9 @@ use File::Basename;
 use XML::Parser;
 use Encode;
 
-use vars qw($opt_a $opt_i $opt_d $opt_r $opt_t $opt_c $opt_v $opt_x $opt_o $opt_y $opt_f $opt_m $opt_s $opt_u $opt_p $opt_e);
+use vars qw($opt_a $opt_i $opt_d $opt_e $opt_r $opt_t $opt_c $opt_v $opt_x $opt_o $opt_y $opt_f $opt_m $opt_s $opt_u $opt_p $opt_M $opt_k $opt_P $opt_U $opt_A $opt_C);
 use Getopt::Std;
-getopts('a:d:r:t:c:x:voyf:m:si:u:p:e');
+getopts('a:d:e:r:t:c:x:voyf:m:si:u:p:MkP:U:AC');
 
 
 # script arguments
@@ -69,7 +76,6 @@ my $CWBREG     = $opt_r || 'reg';       # directory of CWB registry
 my $OVERWRITE  = $opt_o || 0;           # overwrite old CWB data
 my $ASSUME_YES = $opt_y || 0;           # assume yes to overwrite
 my $VERBOSE    = $opt_v || 0;           # verbose output
-my $LANGENC    = $opt_e;                # use language-specific char encoding (not utf8)
 
 my @LANG       = @ARGV;                 # languages to be processed (sub-dirs!)
 my @ALGLANG    = @LANG;
@@ -96,6 +102,10 @@ my $AllAttributes = 1;           # use all attributes
 my $StrucAttrPattern = $opt_u || undef;    # structural attribute pattern
 my $WordAttrPattern = $opt_p || undef;     # token attribute pattern
 
+my $SkipStrucAttrPattern = $opt_U || undef;  # skip structural attribute pattern
+my $SkipWordAttrPattern = $opt_P || undef;   # skip token attribute pattern
+
+
 # global variables used in XML parser
 
 my @PATTR=();
@@ -112,6 +122,7 @@ my $WordStart=0;
 my $WordDone=0;
 my $XmlStr;
 my %WordAttr=();
+my %AllWordAttr=();
 
 my $OutputEncoding;
 
@@ -195,6 +206,7 @@ if ($opt_f){
 # make monolingual corpus indeces
 
 # if (not $opt_m){
+unless ($opt_M){
 foreach my $l (@LANG){
 
     my $llc = lc($l);
@@ -229,6 +241,7 @@ foreach my $l (@LANG){
     $WordDone=0;
     $XmlStr;
     %WordAttr=();
+    %AllWordAttr=();
 
     foreach my $f (@doc){
 #	next if ($f ne 'xml/de/ep-01-09-05.xml.gz');
@@ -240,14 +253,15 @@ foreach my $l (@LANG){
     print STDERR "make CWB index for '$l'\n" if $VERBOSE;
     MakeCWBindex($llc,$cwbtok,$attr);
 
-    unlink $cwbtok;
+    unlink $cwbtok unless ($opt_k);
     
 }
-# }
+}
 
 ########################################################################
 # make alignment index for each language pair
 
+unless ($opt_A){
 foreach my $s (@ALGLANG){
 
     my $slc = lc($s);
@@ -320,13 +334,13 @@ foreach my $s (@ALGLANG){
 	print STDERR "make alignment index for '$s-$t'\n" if $VERBOSE;
 	MakeCWBalg($srctrg,$trgsrc,$slc,$tlc);
 
-	unlink($srctrg);
-	unlink($trgsrc);
+	unlink($srctrg) unless ($opt_k);
+	unlink($trgsrc) unless ($opt_k);
 
     }
 }
 
-if (not $opt_m){
+if ((not $opt_m) and (not $opt_k)){
     foreach my $s (@LANG){
 	my $slc=lc($s);
 	unlink($TMPDIR.'/'.$slc.'.pos');
@@ -336,6 +350,7 @@ if (not $opt_m){
 	}
     }
     rmdir($TMPDIR);
+}
 }
 
 # end of main ...
@@ -357,31 +372,35 @@ sub MakeCWBalg{
     #-----------------------------------------------
     # register alignments in CWB
 
-    open F,"<$regdir/$trglang";
-    my @reg=grep { /ALIGNED $srclang/ } <F>;
-    close F;
-    if (not @reg){
-	open F,">>$regdir/$trglang";
-	print F "ALIGNED $srclang\n";
+    unless ($opt_C){
+	open F,"<$regdir/$trglang";
+	my @reg=grep { /ALIGNED $srclang/ } <F>;
 	close F;
-    }
-    open F,"<$regdir/$srclang";
-    my @reg=grep { /ALIGNED $trglang/ } <F>;
-    close F;
-    if (not @reg){
-	open F,">>$regdir/$srclang";
-	print F "ALIGNED $trglang\n";
+	if (not @reg){
+	    open F,">>$regdir/$trglang";
+	    print F "ALIGNED $srclang\n";
+	    close F;
+	}
+	open F,"<$regdir/$srclang";
+	my @reg=grep { /ALIGNED $trglang/ } <F>;
 	close F;
+	if (not @reg){
+	    open F,">>$regdir/$srclang";
+	    print F "ALIGNED $trglang\n";
+	    close F;
+	}
     }
 
-    system "$CWBALIGNENCODE -r $regdir -D $srctrg";
-    system "$CWBALIGNENCODE -r $regdir -D $trgsrc";
+    unless ($opt_C){
+	system "$CWBALIGNENCODE -v -r $regdir -D $srctrg";
+	system "$CWBALIGNENCODE -v -r $regdir -D $trgsrc";
 
-    copy "$srctrg","$datdir/$srclang$trglang.alg";
-    copy "$trgsrc","$datdir/$trglang$srclang.alg";
+	copy "$srctrg","$datdir/$srclang$trglang.alg";
+	copy "$trgsrc","$datdir/$trglang$srclang.alg";
 
-    system "gzip -f $datdir/$trglang$srclang.alg";
-    system "gzip -f $datdir/$srclang$trglang.alg";
+	system "gzip -f $datdir/$trglang$srclang.alg";
+	system "gzip -f $datdir/$srclang$trglang.alg";
+    }
 }
 
 
@@ -402,7 +421,7 @@ sub check_alg_filename{
 }
 
 sub Align2CWB{
-    my ($file,$srcPosFile,$trgPosFile,$srcPos,$trgPos)=@_;
+    my ($file,$srcPosFile,$trgPosFile,$srcPosStr,$trgPosStr)=@_;
 
     my $lastsrc=-1;
     my $lasttrg=-1;
@@ -414,14 +433,22 @@ sub Align2CWB{
     my ($srcdoc,$trgdoc);
     my ($srcdocID,$trgdocID);
 
+    my $srcPos = {};
+    my $trgPos = {};
+
     while(<F>){
 	if (/fromDoc\s*=\s*\"([^\"]+)\"/){
-	    $srcdoc=check_alg_filename($1,$srcPos);
+	    $srcdoc=check_alg_filename($1,$srcPosStr);
 	    next if (not defined $srcdoc);
+	    $srcPos = {};
+	    GetPosInfo($$srcPosStr{$srcdoc},$srcPos);
 	}
 	if (/toDoc\s*=\s*\"([^\"]+)\"/){
-	    $trgdoc=check_alg_filename($1,$trgPos);
+	    $trgdoc=check_alg_filename($1,$trgPosStr);
+	    $trgPos = {};
 	    next if (not defined $trgdoc);
+	    GetPosInfo($$trgPosStr{$trgdoc},$trgPos);
+	    print STDERR '.' if ($VERBOSE);
 	}
 
 	if (/(sentLink|link)\s.*xtargets=\"([^\"]+)\s*\;\s*([^\"]+)\"/){
@@ -431,42 +458,44 @@ sub Align2CWB{
 	    my @trgsent=split(/\s/,$trg);
 
 	    if (not (@srcsent and @trgsent)){next;}
-	    next if (not defined $$srcPos{$srcdoc});
-	    next if (not defined $$srcPos{$srcdoc}{$srcsent[0]});
-	    next if (not defined $$srcPos{$srcdoc}{$srcsent[-1]});
+	    next if (not defined $$srcPos{$srcsent[0]});
+	    next if (not defined $$srcPos{$srcsent[-1]});
 
-	    next if (not defined $$trgPos{$trgdoc});
-	    next if (not defined $$trgPos{$trgdoc}{$trgsent[0]});
-	    next if (not defined $$trgPos{$trgdoc}{$trgsent[-1]});
+	    next if (not defined $$trgPos{$trgsent[0]});
+	    next if (not defined $$trgPos{$trgsent[-1]});
+
+	    ## this is weird but I saw it happening ...
+	    next if ($$srcPos{$srcsent[0]}[0] > $$srcPos{$srcsent[-1]}[1]);
+	    next if ($$trgPos{$trgsent[0]}[0] > $$trgPos{$trgsent[-1]}[1]);
 
 	    #------------------------------------------
 	    # print alignment file (src --> trg)
 
-	    if ($lastsrc<$$srcPos{$srcdoc}{$srcsent[0]}[0]){
-		print ALG1 $$srcPos{$srcdoc}{$srcsent[0]}[0],"\t";
-		print ALG1 $$srcPos{$srcdoc}{$srcsent[-1]}[1],"\t";
-		print ALG1 $$trgPos{$trgdoc}{$trgsent[0]}[0],"\t";
-		print ALG1 $$trgPos{$trgdoc}{$trgsent[-1]}[1],"\t";
+	    if ($lastsrc<$$srcPos{$srcsent[0]}[0]){
+		print ALG1 $$srcPos{$srcsent[0]}[0],"\t";
+		print ALG1 $$srcPos{$srcsent[-1]}[1],"\t";
+		print ALG1 $$trgPos{$trgsent[0]}[0],"\t";
+		print ALG1 $$trgPos{$trgsent[-1]}[1],"\t";
 		print ALG1 scalar @srcsent;
 		print ALG1 ':';
 		print ALG1 scalar @trgsent;
 		print ALG1 "\n";
-		$lastsrc=$$srcPos{$srcdoc}{$srcsent[-1]}[1];
+		$lastsrc=$$srcPos{$srcsent[-1]}[1];
 	    }
 	    
 	    #------------------------------------------
 	    # print alignment file (trg --> src)
 
-	    if ($lasttrg<$$trgPos{$trgdoc}{$trgsent[0]}[0]){
-		print ALG2 $$trgPos{$trgdoc}{$trgsent[0]}[0],"\t";
-		print ALG2 $$trgPos{$trgdoc}{$trgsent[-1]}[1],"\t";
-		print ALG2 $$srcPos{$srcdoc}{$srcsent[0]}[0],"\t";
-		print ALG2 $$srcPos{$srcdoc}{$srcsent[-1]}[1],"\t";
+	    if ($lasttrg<$$trgPos{$trgsent[0]}[0]){
+		print ALG2 $$trgPos{$trgsent[0]}[0],"\t";
+		print ALG2 $$trgPos{$trgsent[-1]}[1],"\t";
+		print ALG2 $$srcPos{$srcsent[0]}[0],"\t";
+		print ALG2 $$srcPos{$srcsent[-1]}[1],"\t";
 		print ALG2 scalar @trgsent;
 		print ALG2 ':';
 		print ALG2 scalar @srcsent;
 		print ALG2 "\n";
-		$lasttrg=$$trgPos{$trgdoc}{$trgsent[-1]}[1];
+		$lasttrg=$$trgPos{$trgsent[-1]}[1];
 	    }
 	}
     }
@@ -475,6 +504,25 @@ sub Align2CWB{
 
 
 
+
+
+# sub ReadPosFile{
+#     my $file=shift;
+#     my $pos=shift;
+#     open F,"<$file";
+#     my $f;
+#     while(<F>){
+# 	chomp;
+# 	if (/^\#\s+(\S+)\s*$/){
+# 	    $f=$1;
+# 	    next;
+# 	}
+# 	my ($id,$start,$end)=split(/\t/,$_);
+# 	$$pos{$f}{$id}[0]=$start;
+# 	$$pos{$f}{$id}[1]=$end;
+#     }
+#     close F;
+# }
 
 
 sub ReadPosFile{
@@ -483,19 +531,24 @@ sub ReadPosFile{
     open F,"<$file";
     my $f;
     while(<F>){
-	chomp;
 	if (/^\#\s+(\S+)\s*$/){
 	    $f=$1;
 	    next;
 	}
-	my ($id,$start,$end)=split(/\t/,$_);
-	$$pos{$f}{$id}[0]=$start;
-	$$pos{$f}{$id}[1]=$end;
+	$$pos{$f} .= $_;
     }
     close F;
 }
 
-
+sub GetPosInfo{
+    my $posstr = shift;
+    my $pos = shift;
+    foreach (split(/\n/,$posstr)){
+ 	my ($id,$start,$end)=split(/\t/,$_);
+ 	$$pos{$id}[0]=$start;
+	$$pos{$id}[1]=$end;	
+    }
+}
 
 
 
@@ -517,48 +570,56 @@ sub MakeCWBindex{
 
     my $datdir = "$CWBDATA/$CORPUS";
     my $regdir = "$CWBREG/$CORPUS";
+    my @extra  = ();
 
-    if (-d "$datdir/$lang"){
-	if ($OVERWRITE){
-	    my $ok = $ASSUME_YES;
-	    if (! $ASSUME_YES){
-		print "$datdir/$lang exists! Overwrite [y|N]\n";
-		my $answer = <STDIN>;
-		if ($answer=~/^y/){
-		    $ok = 1;
+    unless ($opt_C){
+	if (-d "$datdir/$lang"){
+	    if ($OVERWRITE){
+		my $ok = $ASSUME_YES;
+		if (! $ASSUME_YES){
+		    print "$datdir/$lang exists! Overwrite [y|N]\n";
+		    my $answer = <STDIN>;
+		    if ($answer=~/^y/){
+			$ok = 1;
+		    }
+		}
+		if ($ok){
+		    system ("rm -fr $datdir/$lang");  # this looks scary!!!!!!!!!
+		}
+		else{
+		    unlink $lang;
+		    return 0;
 		}
 	    }
-	    if ($ok){
-		system ("rm -fr $datdir/$lang");  # this looks scary!!!!!!!!!
-	    }
 	    else{
+		warn "$datdir/$lang exists! (do not overwrite!)\n";
 		unlink $lang;
 		return 0;
 	    }
 	}
-	else{
-	    warn "$datdir/$lang exists! (do not overwrite!)\n";
-	    unlink $lang;
-	    return 0;
+
+	## save the ALIGNED lines!
+	if (-e "$regdir/$lang"){
+	    @extra = `grep 'ALIGNED' $regdir/$lang`;
 	}
+	mkdir "$datdir/$lang",0755;
     }
 
-    ## save the ALIGNED lines!
-    my @extra=();
-    if (-e "$regdir/$lang"){
-	@extra = `grep 'ALIGNED' $regdir/$lang`;
-    }
-    mkdir "$datdir/$lang",0755;
-    system ("$ENCODE -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr");
-    system ("$CWBMAKEALL -r $regdir -V $lang");
+    print STDERR "$ENCODE -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr\n";
+    system ("$ENCODE -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr")
+	unless ($opt_C);
+    print STDERR "$CWBMAKEALL -r $regdir -V $lang\n";
+    system ("$CWBMAKEALL -r $regdir -V $lang") 	unless ($opt_C);
 
     ## ... and add them to the new registry file
     if (@extra){
-	open REG,">>$regdir/$lang";
-	foreach (@extra){
-	    print REG $_;
+	unless ($opt_C){
+	    open REG,">>$regdir/$lang";
+	    foreach (@extra){
+		print REG $_;
+	    }
+	    close REG;
 	}
-	close REG;
     }
 }
 
@@ -601,7 +662,6 @@ sub FindDocuments{
 #----------------------------------------------------------------------
 
 sub GetLangEncoding{
-    return 'utf-8' unless ($LANGENC);
     my $lang = shift;
     return $LANGCODES{$lang} if (exists $LANGCODES{$lang});
     return 'iso-8859-1';
@@ -624,7 +684,7 @@ sub XML2CWB{
     open OUT,">>$cwbtok";
     open POS,">>$cwbpos";
 
-    $OutputEncoding = GetLangEncoding($lang);
+    $OutputEncoding = $opt_e || GetLangEncoding($lang);
     eval { binmode (OUT,':encoding('.$OutputEncoding.')'); };
 
     print POS "# $file\n";
@@ -674,7 +734,7 @@ sub XML2CWB{
 	
 	eval { $AllAttrParser->parsefile($file); };
 	if ($@){warn "$@";}
-	@PATTR=sort keys %WordAttr;
+	@PATTR=sort keys %AllWordAttr;
 #	%{$parser1}=();
 #	$parser1 = undef;
     }
@@ -814,17 +874,26 @@ sub XmlChar{
 sub XmlAttrStart{
     my $p=shift;
     my $e=shift;
+    my %a=@_;
     if ($e eq $WordTag){
-	if (defined $WordAttrPattern){
-	    if ($e!~/^$WordAttrPattern$/){return;}
-	}
 	$WordStart=1;
-	while (@_){$WordAttr{$_[0]}=$_[1];shift;shift;}
+	foreach my $i (keys %a){
+	    if (defined $WordAttrPattern){
+		next if ($i!~/^$WordAttrPattern$/);
+	    }
+	    if (defined $SkipWordAttrPattern){
+		next if ($i=~/^$SkipWordAttrPattern$/);
+	    }
+	    $AllWordAttr{$i}=$a{$i};
+	}
     }
     else{
 	if (defined $StrucAttrPattern){
 	    if ($e!~/^$StrucAttrPattern$/){return;}
-	    }
+	}
+	if (defined $SkipStrucAttrPattern){
+	    if ($e=~/^$SkipStrucAttrPattern$/){return;}
+	}
 	while (@_){$SATTR{$e}{$_[0]}=$_[1];shift;shift;}
     }
 }

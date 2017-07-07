@@ -17,27 +17,14 @@ opus-udpipe
  -l <langid> ......... language ID (ISO639-1)
  -m <modeldir> ....... path to udpipe models
  -v <version> ........ model version
+ -D .................. print model dir (and stop)
+ -L .................. list supported languages
+ -M .................. list UDPipe models
 
+=head1 TODO
 
- -s srcfactors ......... specify source language factors besides surface words
- -t trgfactors ......... the same for the target language (separated by ':')
-                         factors should be attributes of <w> tags!!
-                         (except 'word' which is the word itself)
- -d dir ................ home directory of the OPUS subcorpus
- -n file-pattern ....... skip bitext files that match pattern (e.g. ep-00-1*)
- -i .................... inverse selection (only files matching file pattern)
- -e src-data-file ...... output file for source language data (default = src)
- -f src-data-file ...... output file for target language data (default = trg)
-
- -p sentence-pair-file . stores sentence ID pairs of the extracted pairs
- -l .................... convert to lower case
- -1 .................... 1:1 links only
- -x max ................ max size of sentences (in nr of words)
-
- -r .................... process untokenized (raw) XML (no length filtering)
-
- -M .................... read all sentences into memory for each linked document
-                         before extracting linked sentences (for non-monotonic links)
+Treat markup inside of sentences! 
+Now all sentence-internal markup is ignored and not printed to the parsed output.
 
 =head1 LICENSE
 
@@ -74,9 +61,9 @@ use HTML::Entities qw/encode_entities/;
 use Ufal::UDPipe;
 
 
-our ($opt_l, $opt_m, $opt_v);
+our ($opt_l, $opt_m, $opt_v, $opt_D, $opt_L, $opt_M);
 
-getopts('l:m:v:');
+getopts('l:m:v:DLM');
 
 my $lang         = $opt_l || 'en';
 # my $inputFormat  = 'horizontal';
@@ -157,6 +144,25 @@ my %UDmodels = (
     ta => "tamil-ud-$version.udpipe"
     );
 
+
+# just list supported languages and models
+if ($opt_L){
+    print join(' ',sort keys %UDmodels);
+    print "\n";
+    exit 0;
+}
+if ($opt_M){
+
+    print join("\n",sort values %UDmodels);
+    print "\n";
+    exit 0;
+}
+if ($opt_D){
+    print $ModelDir,"\n";
+    exit 0;
+}
+
+
 my $modelFile = $ModelDir.'/'.$UDmodels{$lang};
 
 print STDERR "Loading model: ";
@@ -202,8 +208,26 @@ sub XmlStart{
     my ($p,$e,%a) = @_;
     if ($e eq 's'){
 	$$p{SENT} = '';
+	$$p{SENTID} = $a{id};
+	$$p{WIDBASE} = $a{id};
+	$$p{WIDBASE} =~s/^s/w/;
+	$$p{TAGS} = [];
+	$XmlWriter->startTag($e,%a);
     }
-    $XmlWriter->startTag($e,%a);
+    else{
+	unless (exists $$p{SENT}){
+	    $XmlWriter->startTag($e,%a);
+	}
+	## save sentence-internal tags
+	else{
+	    my $idx = @{$$p{TAGS}};
+	    $$p{TAGS}[$idx]{tag} = $e;
+	    %{$$p{TAGS}[$idx]{attr}} = %a;
+	    $$p{TAGS}[$idx]{type} = 'open';
+	    $$p{TAGS}[$idx]{after} = $$p{SENT};
+	    $$p{TAGS}[$idx]{after}=~s/\s+//sg;
+	}
+    }
 }
 
 sub XmlEnd{
@@ -218,9 +242,13 @@ sub XmlEnd{
 	    print STDERR $sentCount,"\n";
 	}
 
+	$$p{SENT}=~s/^\s*//;
+	$$p{SENT}=~s/\s*$//;
 	$tokenizer->setText($$p{SENT});
 	delete $$p{SENT};
 	my $nrSent=0;
+	my $sentStr = '';
+
 	while ($tokenizer->nextSentence($sentence)) {
 
 	    $model->tag($sentence, $Ufal::UDPipe::Model::DEFAULT);
@@ -242,24 +270,60 @@ sub XmlEnd{
 		next if ($line=~/^\#/);
 		my ($id,$word,$lemma,$upos,$xpos,$feats,$head,$deprel,$deps,$misc) 
 		    = split(/\t/,$line);
+
+		&insert_tags($sentStr,$word,$$p{TAGS});
+		$sentStr .= $word;
+		$sentStr=~s/\s+//sg; ## do we need this?
+
 		## TODO: do something more clever with multi-span tokens
 		next if ($id=~/\-/);
-		my %attr = (id => $id);
+		my %attr = (id => "$$p{WIDBASE}.$id");
 		$attr{lemma}=$lemma unless ($lemma eq '_');
 		$attr{upos}=$upos unless ($upos eq '_');
 		$attr{xpos}=$upos unless ($xpos eq '_');
 		$attr{feats}=$feats unless ($feats eq '_');
-		$attr{head}=$head unless ($head eq '_');
+		## good to have real word IDs (in case we have multiple sentences 
+		## in one unit
+		if ($head eq '0'){
+		    $attr{head} = 0;
+		}
+		else{
+		    $attr{head}="$$p{WIDBASE}.$head" unless ($head eq '_');
+		}
+		# $attr{head}="$$p{WIDBASE}.$head" unless ($head eq '_');
 		$attr{deprel}=$deprel unless ($deprel eq '_');
 		$attr{secdep}=$deps unless ($deps eq '_');
 		$attr{misc}=$misc unless ($misc eq '_');
 		$XmlWriter->startTag('w',%attr);
 		$XmlWriter->characters($word);
 		$XmlWriter->endTag('w');
+
+		&insert_tags($sentStr,' ',$$p{TAGS});
+
 	    }
 	}
+
+	if (@{$$p{TAGS}}){
+	    print STDERR "Warning: remaining tags found:";
+	    foreach my $t (@{$$p{TAGS}}){
+		print "tag = $$t{tag} ($$t{type})\n";
+	    }
+	}
+
+	$XmlWriter->endTag($e);
     }
-    $XmlWriter->endTag($e);
+    else{
+	unless (exists $$p{SENT}){
+	    $XmlWriter->endTag($e);
+	}
+	else{
+	    my $idx = @{$$p{TAGS}};
+	    $$p{TAGS}[$idx]{tag} = $e;
+	    $$p{TAGS}[$idx]{type} = 'close';
+	    $$p{TAGS}[$idx]{after} = $$p{SENT};
+	    $$p{TAGS}[$idx]{after}=~s/\s+//sg;
+	}
+    }
 }
 
 sub XmlChar{
@@ -267,3 +331,53 @@ sub XmlChar{
     $$p{SENT}.=$c if (exists $$p{SENT});
 }
 
+
+
+
+
+sub insert_tags{
+    my ($before,$next,$tags)=@_;
+
+    while (@{$tags}){
+
+	## check if we should insert a tag
+	## - string before matches
+	## - token-internal tags: put start-tag before the next token
+	##                        put end-tag after
+	my $insert = 0;
+	if ($before eq $$tags[0]{after}){
+	    $insert = 1;
+	}
+	elsif (length("$before$next") <= length($$tags[0]{after})){
+	    return;  # tags should be sorted by increasing length
+	}
+	## token-internal tags (index should be 0 but 
+	elsif (index("$before$next",$$tags[0]{after})>=0){
+	    $insert = 1 if ($$tags[0]{type} eq 'open');
+	}
+	elsif (index($before,$$tags[0]{after})>=0){
+	    $insert = 1 if ($$tags[0]{type} eq 'close');
+	}
+
+	if ($insert){
+	    if ($$tags[0]{type} eq 'open'){
+		## same place as next closing tag? --> write empty tag
+		if ($$tags[0]{after} eq $$tags[1]{after}){
+		    $XmlWriter->emptyTag($$tags[0]{tag},
+					 %{$$tags[0]{attr}});
+		    shift(@{$tags});
+		    shift(@{$tags});
+		}
+		else{
+		    $XmlWriter->startTag($$tags[0]{tag},
+					 %{$$tags[0]{attr}});
+		    shift(@{$tags});
+		}
+	    }
+	    elsif ($$tags[0]{type} eq 'close'){
+		$XmlWriter->endTag($$tags[0]{tag});
+		shift(@{$tags});
+	    }
+	}
+    }
+}

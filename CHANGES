@@ -4,6 +4,8 @@
 - opus-udpipe added (requires UDPipe perl bindings)
 - use utf-8 as default in opus-index
 - opus2multi can handle intralingual links (for OpenSubtitles)
+- opus-udpipe can handle additional XML tags
+
 
 * v0.02		Tue Jun 27 11:24:58 EEST 2017
 

@@ -410,13 +410,17 @@ sub check_alg_filename{
     $filename=~s/\/\.\//\//g;
     return $filename if (exists $$filehash{$filename});
     return $filename.'.gz' if (exists $$filehash{$filename.'.gz'});
-    return 'xml/'.$filename if (exists $$filehash{'xml/'.$filename});
-    return 'xml/'.$filename.'.gz' if (exists $$filehash{"xml/$filename.gz"});
+    return $XMLDIR.'/'.$filename if (exists $$filehash{$XMLDIR.'/'.$filename});
+    return $XMLDIR.'/'.$filename.'.gz' if (exists $$filehash{"$XMLDIR/$filename.gz"});
+    # return 'xml/'.$filename if (exists $$filehash{'xml/'.$filename});
+    # return 'xml/'.$filename.'.gz' if (exists $$filehash{"xml/$filename.gz"});
     $filename=~s/(oo_|kde_|php_)//;
     return $filename if (exists $$filehash{$filename});
     return $filename.'.gz' if (exists $$filehash{$filename.'.gz'});
-    return 'xml/'.$filename if (exists $$filehash{'xml/'.$filename});
-    return 'xml/'.$filename.'.gz' if (exists $$filehash{"xml/$filename.gz"});
+    return $XMLDIR.'/'.$filename if (exists $$filehash{$XMLDIR.'/'.$filename});
+    return $XMLDIR.'/'.$filename.'.gz' if (exists $$filehash{"$XMLDIR/$filename.gz"});
+    # return 'xml/'.$filename if (exists $$filehash{'xml/'.$filename});
+    # return 'xml/'.$filename.'.gz' if (exists $$filehash{"xml/$filename.gz"});
     return undef;
 }
 

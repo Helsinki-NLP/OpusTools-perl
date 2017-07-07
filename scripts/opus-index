@@ -129,61 +129,61 @@ my $OutputEncoding;
 ## non iso-latin1 language encodings ....
 my %LANGCODES=(
 	       # some three letter language codes (more to add ...)
-	       'bul' => 'utf-8',
-	       'chi' => 'utf-8',
+	       'bul' => 'utf8',
+	       'chi' => 'utf8',
 	       'cze' => 'iso-8859-2',
 	       'ell' => 'iso-8859-7',
 	       'gre' => 'iso-8859-7',
-	       'heb' => 'utf-8',
+	       'heb' => 'utf8',
 	       'hrv' => 'iso-8859-2',
 	       'ice' => 'iso-8859-4',
-	       'jap' => 'utf-8',
-	       'jpn' => 'utf-8',
+	       'jap' => 'utf8',
+	       'jpn' => 'utf8',
 	       'lit' => 'iso-8859-4',
 	       'rum' => 'iso-8859-2',
-	       'rus' => 'utf-8',
+	       'rus' => 'utf8',
 	       'slv' => 'iso-8859-2',
 	       'tur' => 'iso-8859-9',
 	       # two letter codes (complete & correct ??)
-	       'ar' => 'utf-8',
-	       'az' => 'utf-8',
-	       'be' => 'utf-8',
-	       'bg' => 'utf-8',
-	       'bs' => 'utf-8',
+	       'ar' => 'utf8',
+	       'az' => 'utf8',
+	       'be' => 'utf8',
+	       'bg' => 'utf8',
+	       'bs' => 'utf8',
 	       'cs' => 'iso-8859-2',
 	       'el' => 'iso-8859-7',
-#	       'el' => 'utf-8',
+#	       'el' => 'utf8',
 	       'eo' => 'iso-8859-3',
 	       'et' => 'iso-8859-4',
-	       'fa' => 'utf-8',
-	       'he' => 'utf-8',
+	       'fa' => 'utf8',
+	       'he' => 'utf8',
 	       'hr' => 'iso-8859-2',
 	       'hu' => 'iso-8859-2',
-	       'id' => 'utf-8',
-	       'ja' => 'utf-8',
-	       'jp' => 'utf-8',
-	       'ko' => 'utf-8',
-	       'ku' => 'utf-8',
+	       'id' => 'utf8',
+	       'ja' => 'utf8',
+	       'jp' => 'utf8',
+	       'ko' => 'utf8',
+	       'ku' => 'utf8',
 	       'lt' => 'iso-8859-4',
 	       'lv' => 'iso-8859-4',
-	       'mi' => 'utf-8',
-	       'mk' => 'utf-8',
+	       'mi' => 'utf8',
+	       'mk' => 'utf8',
 	       'pl' => 'iso-8859-2',
 	       'ro' => 'iso-8859-2',
-	       'ru' => 'utf-8',
+	       'ru' => 'utf8',
 	       'sk' => 'iso-8859-2',
 	       'sl' => 'iso-8859-2',
 	       'sr' => 'iso-8859-2',
-	       'ta' => 'utf-8',
-	       'th' => 'utf-8',
+	       'ta' => 'utf8',
+	       'th' => 'utf8',
 	       'tr' => 'iso-8859-9',
-	       'uk' => 'utf-8',
-	       'vi' => 'utf-8',
-	       'xh' => 'utf-8',
-	       'zh_tw' => 'utf-8',
-	       'zh_cn' => 'utf-8',
-	       'zh' => 'utf-8',
-	       'zu' => 'utf-8'
+	       'uk' => 'utf8',
+	       'vi' => 'utf8',
+	       'xh' => 'utf8',
+	       'zh_tw' => 'utf8',
+	       'zh_cn' => 'utf8',
+	       'zh' => 'utf8',
+	       'zu' => 'utf8'
 		   );
 
 my $AllAttrParser = new XML::Parser(Handlers => {Start => \&XmlAttrStart});
@@ -504,27 +504,6 @@ sub Align2CWB{
 
 
 
-
-
-# sub ReadPosFile{
-#     my $file=shift;
-#     my $pos=shift;
-#     open F,"<$file";
-#     my $f;
-#     while(<F>){
-# 	chomp;
-# 	if (/^\#\s+(\S+)\s*$/){
-# 	    $f=$1;
-# 	    next;
-# 	}
-# 	my ($id,$start,$end)=split(/\t/,$_);
-# 	$$pos{$f}{$id}[0]=$start;
-# 	$$pos{$f}{$id}[1]=$end;
-#     }
-#     close F;
-# }
-
-
 sub ReadPosFile{
     my $file=shift;
     my $pos=shift;
@@ -605,8 +584,10 @@ sub MakeCWBindex{
 	mkdir "$datdir/$lang",0755;
     }
 
-    print STDERR "$ENCODE -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr\n";
-    system ("$ENCODE -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr")
+    my $Encoding = $opt_e || GetLangEncoding($lang);
+
+    print STDERR "$ENCODE -c $Encoding -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr\n";
+    system ("$ENCODE -c $Encoding -R $regdir/$lang -d $datdir/$lang -f $cwbtok $attr")
 	unless ($opt_C);
     print STDERR "$CWBMAKEALL -r $regdir -V $lang\n";
     system ("$CWBMAKEALL -r $regdir -V $lang") 	unless ($opt_C);
@@ -728,22 +709,11 @@ sub XML2CWB{
 	return;
     }
 
-    if ($AllAttributes){
-#	my $parser1=
-#	    new XML::Parser(Handlers => {Start => \&XmlAttrStart});
-	
+    if ($AllAttributes){	
 	eval { $AllAttrParser->parsefile($file); };
 	if ($@){warn "$@";}
 	@PATTR=sort keys %AllWordAttr;
-#	%{$parser1}=();
-#	$parser1 = undef;
     }
-
-#    my $parser2=
-#	new XML::Parser(Handlers => {Start => \&XmlStart,
-#				     End => \&XmlEnd,
-#				     Default => \&XmlChar,
-#				 },);
 
     eval { $XmlParser->parsefile($file); };
     if ($@){warn "$@";}
@@ -760,10 +730,6 @@ sub XML2CWB{
     eval { print OUT '</sub>'."\n" if ($CORPUS=~/[sS]ubtitles/); };
     eval { print OUT '</file>'."\n"; };
     eval { close OUT; };
-
-#    %{$parser2}=();
-#    $parser2 = undef;
-
 }
 
 
@@ -906,7 +872,7 @@ sub handle_encoding{
     ## handle malformed data by converting to octets and back
     ## the sub in encode ensures that malformed characters are ignored!
     ## (see http://perldoc.perl.org/Encode.html#Handling-Malformed-Data)
-    if ($encoding ne 'utf-8'){
+    if ($encoding ne 'utf8'){
 #  the following causes a memory leak!
 #	my $octets = encode($encoding, $string,sub{ return '' });
 # don't know if this works (probably not ... has to be reference ...)
@@ -928,7 +894,7 @@ sub printWord{
 #    ## handle malformed data by converting to octets and back
 #    ## the sub in encode ensures that malformed characters are ignored!
 #    ## (see http://perldoc.perl.org/Encode.html#Handling-Malformed-Data)
-#    if ($OutputEncoding ne 'utf-8'){
+#    if ($OutputEncoding ne 'utf8'){
 #	my $octets = encode($OutputEncoding, $word,sub{ return '' });
 #	$word = decode($OutputEncoding, $octets);
 #    }

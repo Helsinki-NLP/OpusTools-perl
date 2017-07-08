@@ -678,12 +678,21 @@ sub XML2CWB{
 
     eval { print OUT "<file name=\"$file\">\n"; 
 	   $SATTR{file} = { name => $file };
+	   ## subtitle-specific things ...
 	   if ($CORPUS=~/[Ss]ubtitles/){
-	       $file=~/(\A|\/)([0-9]+)\_([0-9]+)\_([0-9]+)\_(.*)\.xml/;
-	       print OUT "<sub id=\"$3\" movie=\"$5\" movieID=\"$2\">\n";
-	       $SATTR{sub} = { id => $3,
-			       movie => $5,
-			       movieID => $2 };
+	       if ($file=~/(\A|\/)([0-9]+)\/([0-9]+)\_([0-9]+)\_([0-9]+)\_(.*)\.xml/){
+		   print OUT "<sub id=\"$4\" movie=\"$6\" movieID=\"$3\" year=\"$2\">\n";
+		   $SATTR{sub} = { id => $4,
+				   movie => $6,
+				   movieID => $3,
+				   year => $2};
+	       }
+	       elsif ($file=~/(\A|\/)([0-9]+)\/([0-9]+)\/([0-9]+)\.xml/){
+		   print OUT "<sub id=\"$4\" movieID=\"$3\" year=\"$2\">\n";
+		   $SATTR{sub} = { id => $4,
+				   movieID => $3,
+				   year => $2};
+	       }
 	   }
        };
 
@@ -790,14 +799,17 @@ sub XmlStart{
 	$XmlStr='';
 	%WordAttr=@_;
     }
+    ## TODO: this does not work if time spans several sentences
     elsif ($CORPUS=~/[Ss]ubtitles/ && $e eq 'time'){
-	if ($p->{OPENTIME}){
-	    printXmlEndTag($e,@_);
-	    $p->{OPENTIME} = 0;
-	}
-	else{
-	    printXmlStartTag($e,@_);
-	    $p->{OPENTIME} = 1;
+	if (defined $SATTR{$e}){
+	    if ($p->{OPENTIME}){
+		printXmlEndTag($e,@_);
+		$p->{OPENTIME} = 0;
+	    }
+	    else{
+		printXmlStartTag($e,@_);
+		$p->{OPENTIME} = 1;
+	    }
 	}
     }
     elsif (defined $SATTR{$e}){

@@ -56,7 +56,6 @@ use open qw(:std :utf8);
 use Getopt::Std;
 use XML::Parser;
 use XML::Writer;
-use HTML::Entities qw/encode_entities/;
 
 use Ufal::UDPipe;
 

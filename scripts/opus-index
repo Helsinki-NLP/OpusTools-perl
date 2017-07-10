@@ -60,6 +60,7 @@ use File::Copy;
 use File::Basename;
 use XML::Parser;
 use Encode;
+use HTML::Entities qw/encode_entities/;
 
 use vars qw($opt_a $opt_i $opt_d $opt_e $opt_r $opt_t $opt_c $opt_v $opt_x $opt_o $opt_y $opt_f $opt_m $opt_s $opt_u $opt_p $opt_M $opt_k $opt_P $opt_U $opt_A $opt_C);
 use Getopt::Std;
@@ -218,38 +219,58 @@ foreach my $l (@LANG){
 	next;
     }
 
-    print STDERR "find all xml files for '$l'\n" if $VERBOSE;
-    my @doc = FindDocuments("$XMLDIR/$l",'xml');
-    if (not @doc){
-	@doc = FindDocuments("$XMLDIR/$l",'html');
-	if (not @doc){next;}
+    ## in case the vertical file exists and the attributes 
+    ## for encoding are stored in a file as well:
+    ## --> re-use and encode
+    my $attr = undef;;
+    if (-e $cwbtok && -e "$cwbtok.attr"){
+	print STDERR "$cwbtok found - re-use\n";
+	open A,"<$cwbtok.attr";
+	$attr = <A>;
+	chomp $attr;
+	close A;
     }
-    @doc = sort @doc;
+    else{
 
-    @PATTR=();
-    %SATTR=();
-    %nrSATTR=();
+	print STDERR "find all xml files for '$l'\n" if $VERBOSE;
+	my @doc = FindDocuments("$XMLDIR/$l",'xml');
+	if (not @doc){
+	    @doc = FindDocuments("$XMLDIR/$l",'html');
+	    if (not @doc){next;}
+	}
+	@doc = sort @doc;
 
-    @AllPATTR=();
-    %AllSATTR=();
+	@PATTR=();
+	%SATTR=();
+	%nrSATTR=();
 
-    $pos=0;
+	@AllPATTR=();
+	%AllSATTR=();
 
-    $SentStart=0;
-    $SentDone=0;
-    $WordStart=0;
-    $WordDone=0;
-    $XmlStr;
-    %WordAttr=();
-    %AllWordAttr=();
+	$pos=0;
 
-    foreach my $f (@doc){
+	$SentStart=0;
+	$SentDone=0;
+	$WordStart=0;
+	$WordDone=0;
+	$XmlStr;
+	%WordAttr=();
+	%AllWordAttr=();
+
+	foreach my $f (@doc){
 #	next if ($f ne 'xml/de/ep-01-09-05.xml.gz');
-	print STDERR "convert $f\n" if $VERBOSE;
-	XML2CWB($f,$cwbtok,$cwbpos,$llc);
+	    print STDERR "convert $f\n" if $VERBOSE;
+	    XML2CWB($f,$cwbtok,$cwbpos,$llc);
+	}
+
+	$attr = &AttrString;
+	## save attr string in file 
+	## (in case we want to re-use the converted vertical file)
+	open A,">$cwbtok.attr";
+	print A $attr;
+	close A;
     }
 
-    my $attr = &AttrString;
     print STDERR "make CWB index for '$l'\n" if $VERBOSE;
     MakeCWBindex($llc,$cwbtok,$attr);
 
@@ -936,6 +957,7 @@ sub printXmlStartTag{
     foreach (keys %attr){
 	if (defined $SATTR{$tag}{$_}){
 	    $attr{$_} = handle_encoding($attr{$_},$OutputEncoding);
+	    $attr{$_} = encode_entities($attr{$_}, '<>&"`');
 	    next unless ($attr{$_}=~/\S/);
 	    eval { print OUT " $_=\"$attr{$_}\""; };
 	}

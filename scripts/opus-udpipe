@@ -365,18 +365,19 @@ sub insert_tags{
 		    $XmlWriter->emptyTag($$tags[0]{tag},
 					 %{$$tags[0]{attr}});
 		    shift(@{$tags});
-		    shift(@{$tags});
 		}
 		else{
 		    $XmlWriter->startTag($$tags[0]{tag},
 					 %{$$tags[0]{attr}});
-		    shift(@{$tags});
 		}
 	    }
 	    elsif ($$tags[0]{type} eq 'close'){
 		$XmlWriter->endTag($$tags[0]{tag});
-		shift(@{$tags});
 	    }
+	    shift(@{$tags});
+	}
+	else{
+	    return;
 	}
     }
 }

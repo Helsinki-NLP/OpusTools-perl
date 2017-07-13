@@ -1,68 +1,47 @@
 #!/usr/bin/perl
 #
-#------------------------------------------------------------------------------
-# TODO: save info in some kind of database that can be used to search corpora
-#
-#------------------------------------------------------------------------------
-
+# generate OPUS websites
+# TODO: documentation and cleanup
 
 
 use CGI qw(:standard);
 use FindBin qw($Bin);
 use strict;
 use DB_File;
+use Getopt::Std;
 
-use LetsMT::Lang::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
-
-
-my $indir='.';
-
-my $UplugTools="$Bin/../public/uplug/uplug-main/tools";
-my $downloaddir="$Bin/../../html";
-my $annotated="$Bin/../../annotated";
+use lib "$Bin/../../lib";
+use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
+# use LetsMT::Lang::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
 
-# my $downloaddir='/home/opus/OPUS/html';
-# my $annotated='/home/opus/OPUS/annotated';
-# my $Bin="/home/opus/OPUS/tools/uplug/tools";
+our ($opt_s, $opt_m, $opt_e, $opt_o, $opt_t, $opt_d, $opt_h, $opt_g, $opt_G);
+getopts('s:m:o:t:d:h:gG');
+
+my $indir       = '.';
+my $UplugHome   = $Bin;
+$UplugHome =~s/(OPUS\/.*)$/$1/;
+
+my $UplugHome   = $opt_o if (-d $opt_o);
+my $UplugTools  = $opt_t || $UplugHome."/tools/public/uplug/uplug-main/tools";
+my $downloaddir = $opt_d || $UplugHome."/download";
+my $htmldir     = $opt_h || $UplugHome."/public_html";
 
 
-my $SIZE=100;                   # size for html-sample-files (in sentences)
-my $MAXLANG=25;                 # max number of languages in table without
+my $SIZE    = $opt_s || 100;    # size for html-sample-files (in sentences)
+my $MAXLANG = $opt_m || 25;     # max number of languages in table without
                                 # a new language column/row
-my $EXT='ces';                  # file extension for alignment files
-                                # 'srt5' for subtitle files
-my $VERSION='';
+my $EXT     = $opt_e || 'xml';  # file extension for alignment files
+my $gzip    = $opt_g ? 0 : 1;   # 1 --> everything is compressed with gzip
+my $AlwaysGzip = $opt_G || 0;   # 1 --> ignore uncompressed files
 
-my $gzip=1;       # 1 --> everything is compressed with gzip
-my $AlwaysGzip=0; # 1 --> ignore uncompressed files
-
-while ($ARGV[0]=~/^\-/){
-    my $opt=shift(@ARGV);
-    if ($opt=~/^\-s/){
-	$SIZE=shift(@ARGV);
-    }
-    if ($opt=~/^\-m/){
-	$MAXLANG=shift(@ARGV);
-    }
-    if ($opt=~/^\-e/){
-	$EXT=shift(@ARGV);
-    }
-    if ($opt=~/^\-g/){
-	$gzip = 0;
-    }
-    if ($opt=~/^\-G/){
-	$AlwaysGzip = 1;
-    }
-}
+my $VERSION = '';
 if (@ARGV){
     $indir=shift(@ARGV);
 }
-
 if (@ARGV){
     $VERSION=shift(@ARGV); # corpus version number
 }
-
 my ($CORPUS)=split(/\//,$indir);
 
 #-------------------------------------------------------------------------
@@ -156,33 +135,13 @@ print &HtmlEnd();
 sub PackFiles{
     my $dir=shift;
     my $lang=shift;
-
-#    system "$PACK $CORPUS.tar.gz $dir";
-#    system "mv $CORPUS.tar.gz $dir/";
     foreach (keys %{$lang}){
 	if (-e $$lang{$_}){
 	    if (not -e "$dir/$_.tar.gz"){
 		print STDERR "pack $$lang{$_} into $dir/$_.tar.gz!\n";
-#		system "find $$lang{$_} -name '*.xml*' | xargs tar -czf $dir/$_.tar.gz";
 		system "find $$lang{$_} -name '*.xml*' > $dir/$_.files";
 		system "tar -T $dir/$_.files -czf $dir/$_.tar.gz";
 		system "rm -f $dir/$_.files";
-
-#		$$lang{$_}="$dir/$_.tar.gz";
-#		system "$RMALL $$lang{$_}";
-
-	    }
-	}
-### parsed files, if applicable
-	if (-e $annotated."/".$$lang{$_}){
-	    if (not -e "$dir/$_\_parse.tar.gz"){
-		print STDERR "pack $annotated/$$lang{$_} into $dir/$_\_parse.tar.gz!\n";
-#		system "cd $annotated; find $$lang{$_} -name '*.xml*' | xargs tar -czf $dir/$_\_parse.tar.gz ; cd -";
-
-		system "find $$lang{$_} -name '*.xml*' > $dir/$_.parse.files";
-		system "tar -T $dir/$_.parse.files -czf $dir/$_\_parse.tar.gz";
-		system "rm -f $dir/$_.parse.files";
-
 	    }
 	}
     }
@@ -201,20 +160,20 @@ sub MakeSampleFiles{
     my $samples=shift;
     my $parsesamples=shift;
     foreach (keys %{$lang}){
-	$$parsesamples{$_}=$downloaddir."/".$$lang{$_};
+	$$parsesamples{$_}=$htmldir."/".$$lang{$_};
 	$$parsesamples{$_}.='_parse_sample.html';
 	$$lang{$_}=~/^(.+)\/(.+)$/;
 	my $currcorpus=$1;
 	my $currlang=$2;
 	if (not -e $$parsesamples{$_}){
-	    if(-d $annotated."/".$$lang{$_}){
+	    if(-d "parsed/".$$lang{$_}){
 		system "echo '<html><head></head><body><pre>' > $$parsesamples{$_}";
 		if ($gzip){
-		    my $find="find $annotated/$$lang{$_} -name '*ml.gz'";
+		    my $find="find parsed/$$lang{$_} -name '*ml.gz'";
 		    system "$find | xargs gzip -cd | head -$SIZE | recode utf8..html >> $$parsesamples{$_}";
 		}
 		else{
-		    my $find="find $annotated/$$lang{$_} -name '*ml'";
+		    my $find="find parsed/$$lang{$_} -name '*ml'";
 		    system "$find | xargs cat | head -$SIZE | recode utf8..html >>$$parsesamples{$_}";
 		}
 		system "echo '</pre></body></html>' >> $$parsesamples{$_}";
@@ -222,8 +181,7 @@ sub MakeSampleFiles{
 	}
     }
     foreach (keys %{$lang}){
-	$$samples{$_}=$downloaddir."/".$$lang{$_};
-#	$$samples{$_}=$$lang{$_};
+	$$samples{$_}=$htmldir."/".$$lang{$_};
 	$$samples{$_}.='_sample.html';
 	if (not -e $$samples{$_}){
 	    system "echo '<html><head></head><body><pre>' > $$samples{$_}";
@@ -240,10 +198,9 @@ sub MakeSampleFiles{
     }
     foreach (keys %{$bitexts}){
 	if (-e $$bitexts{$_}){
-	    $$samples{$_}=$downloaddir."/".$$bitexts{$_};
+	    $$samples{$_}=$htmldir."/".$$bitexts{$_};
 	    $$samples{$_}=~s/\.gz$//;
 	    $$samples{$_}=~s/\.${EXT}$/_sample/;
-#	    $$samples{$_}=~s/\.srt[0-9]$/_sample/;  # subtitles ...
 	    $$samples{$_}.='.html';
 	    if (not -e $$samples{$_}){
 		print STDERR "make sample files from $$bitexts{$_}!\n";
@@ -252,8 +209,7 @@ sub MakeSampleFiles{
 	    }
 	    if (-z $$samples{$_}){delete $$samples{$_};} #check if empty file
 	    else{
-#		my $base = $$bitexts{$_};
-		my $base = $downloaddir."/".$$bitexts{$_};
+		my $base = $htmldir."/".$$bitexts{$_};
 		$base=~s/\.gz$//;
 		$base=~s/\.${EXT}$//;
 		my $src='src';
@@ -261,49 +217,6 @@ sub MakeSampleFiles{
 		if ($base=~/(..)-(..)/){
 		    ($src,$trg)=($1,$2);
 		}
-
-		##---------------
-		## skip making moses files from this script ...
-		##---------------
-
-		# # moses/giza++ plain text files
-		# if (! -e $base.'.txt.zip'){
-		#     print STDERR "make text files from $$bitexts{$_}!\n";
-		#     my $command="$CES2MOSES -d $indir -e $base.$src -f $base.$trg";
-		#     if ($$bitexts{$_}=~/\.gz/){
-		# 	print STDERR "gzip -cd $$bitexts{$_} | $command > /dev/null 2> /dev/null\n";
-		# 	system "gzip -cd $$bitexts{$_} | $command > /dev/null 2> /dev/null";
-		#     }
-		#     else{
-		# 	print STDERR "$command $$bitexts{$_} > /dev/null 2> /dev/null/n";
-		# 	system "$command $$bitexts{$_} > /dev/null 2> /dev/null";
-		#     }
-		#     system "zip $base.txt.zip $base.$src $base.$trg > /dev/null 2> /dev/null";
-		#     system "rm -f $base.$src $base.$trg";
-		# }
-
-
-		##---------------
-		## skip making TMX files from this script ...
-		##---------------
-
-# 		# TMX files
-# #		if (! -e $base.'.tmx.zip'){
-# 		if (! -e $base.'.tmx.gz'){
-# 		    print STDERR "make TMX files from $$bitexts{$_}!\n";
-# 		    system "$CES2TMX -d $indir -s $src -t $trg $$bitexts{$_} >$base.tmx 2> /dev/null";
-# 		    system "gzip $base.tmx > /dev/null 2> /dev/null";
-# #		    system "zip $base.tmx.zip $base.tmx > /dev/null 2> /dev/null";
-# #		    system "rm -f $base.tmx";
-# 		}
-
-# 		my $txtfile = $$bitexts{$_};
-# 		$txtfile=~s/\.gz$//;
-# 		$txtfile=~s/\.${EXT}$/.txt/;
-# 		if (! -e $txtfile.'.gz'){
-# 		    print STDERR "make text files from $$bitexts{$_}!\n";
-# 		    system "$CES2TXT $$bitexts{$_} | gzip -c >$txtfile.gz";
-# 		}
 	    }
 	}
     }
@@ -344,26 +257,22 @@ sub GetBitexts{
 
     foreach my $s (@subdir){
 	foreach my $t (@subdir){
-#	    if (-e "$indir/$s-$t.$EXT.gz"){
 	    if (exists $alg{"$s-$t.$EXT.gz"}){
 		$$lang{$s}="$indir/$s";
 		$$lang{$t}="$indir/$t";
 		$$bitexts{"$s-$t"}="$indir/$s-$t.$EXT.gz";
 	    }
-#	    elsif (-e "$indir/$s$t.$EXT.gz"){
 	    elsif (exists $alg{"$s$t.$EXT.gz"}){
 		$$lang{$s}="$indir/$s";
 		$$lang{$t}="$indir/$t";
 		$$bitexts{"$s-$t"}="$indir/$s$t.$EXT.gz";
 	    }
-#	    elsif (-e "$indir/$s$t.$EXT"){
 	    elsif (exists $alg{"$s$t.$EXT"}){
 		$gzip = 0 unless ($AlwaysGzip);     # ---> assume that everything is uncompressed!
 		$$lang{$s}="$indir/$s";
 		$$lang{$t}="$indir/$t";
 		$$bitexts{"$s-$t"}="$indir/$s$t.$EXT";
 	    }
-#	    elsif (-e "$indir/$s-$t.$EXT"){
 	    elsif (exists $alg{"$s-$t.$EXT"}){
 		$gzip = 0 unless ($AlwaysGzip);     # ---> assume that everything is uncompressed!
 		$$lang{$s}="$indir/$s";
@@ -375,26 +284,22 @@ sub GetBitexts{
 		my $trg=$t;
 		$src=~s/^[^\_]*\_//;
 		$trg=~s/^[^\_]*\_//;
-#		if (-e "$indir/$s-$t.$EXT.gz"){
 		if (exists $alg{"$s-$t.$EXT.gz"}){
 		    $$lang{$s}="$indir/$s";
 		    $$lang{$t}="$indir/$t";
 		    $$bitexts{"$s-$t"}="$indir/$s-$t.$EXT.gz";
 		}
-#		elsif (-e "$indir/$src$trg.$EXT.gz"){
 		elsif (exists $alg{"$src$trg.$EXT.gz"}){
 		    $$bitexts{"$src-$trg"}="$indir/$src$trg.$EXT.gz";
 		    $$lang{$src}="$indir/$s";
 		    $$lang{$trg}="$indir/$t";
 		}
-#		elsif (-e "$indir/$src$trg.$EXT"){
 		elsif (exists $alg{"$src$trg.$EXT"}){
 		    $gzip = 0 unless ($AlwaysGzip);;  # ---> assume that everything is uncompressed!
 		    $$bitexts{"$src-$trg"}="$indir/$src$trg.$EXT";
 		    $$lang{$src}="$indir/$s";
 		    $$lang{$trg}="$indir/$t";
 		}
-#		elsif (-e "$indir/$src-$trg.$EXT"){
 		elsif (exists $alg{"$src-$trg.$EXT"}){
 		    $gzip = 0 unless ($AlwaysGzip);;  # ---> assume that everything is uncompressed!
 		    $$bitexts{"$src-$trg"}="$indir/$src-$trg.$EXT";
@@ -495,13 +400,6 @@ sub Statistics{
 
 	($nrFiles{$s},$nrSent{$s},$nrTokens{$s}) = 
 	    &LanguageStatistics($$lang{$s},$gzip);
-
-	# # just in case the XML is not tokenized (-->count=0):
-	# # taken numbers from Moses files instead ....
-	# if (!$nrTokens{$s}){
-	#     my ($NrLinks,$NrSrc);
-	#     ($NrLinks,$NrSrc,$nrTokens{$s}) = &MosesStatistics($$bitexts{"$t-$s"});
-	# }
 
 	my $txt = $s;
 	if (-e "$downloaddir/$CORPUS/mono/$CORPUS.raw.$s.gz"){
@@ -619,19 +517,6 @@ sub BitextStatistics{
 	$nrLinks=`gzip -cd  $bitext | grep '<link ' | wc -l`;
 	chomp($nrLinks);
     }
-
-
-    # print info to file
-
-# #    if ($nrLinks && $nrSrcTok && $nrTrgTok){
-#     if ($nrLinks){
-
-# 	open F,">$infofile";
-# 	print F "  $nrLinks  $nrSrcTok source\n";
-# 	print F "  $nrLinks  $nrTrgTok target\n";
-# 	close F;
-#     }
-
     return ($nrLinks,$nrSrcTok,$nrTrgTok,$nrFiles);
 }
 
@@ -812,7 +697,6 @@ sub DownloadTable{
 	}
 	$SRCCOUNT=0;
 
-#	$HTML.="<tr><th><a rel=\"nofollow\" href=\"download.php?f=$CORPUS/$$lang{$LANG[$i]}.tar.gz\">$LANG[$i]</a></th>\n";
 	$HTML.="<tr><th><a rel=\"nofollow\" href=\"download.php?f=$$lang{$LANG[$i]}.tar.gz\">$LANG[$i]</a></th>\n";
 
 	foreach my $j (0..$i-1){
@@ -882,7 +766,6 @@ sub DownloadTable{
 	}
 	## otherwise: print just an empty table cell
 	else{
-#	    $HTML.="<th>$LANG[$i]</th>\n";
 	    $HTML.="<th></th>\n";
 	}
 	#----------------------------------------------
@@ -921,25 +804,6 @@ sub DownloadTable{
 	else{
 	    $HTML.="<th>$LANG[$i]</th></tr>\n";
 	}
-
-# ### old: sample files for parsed corpus files
-# ### parse results, if applicable
-# 	if(not defined $$parsesamples{"$LANG[$i]"}){
-# 	    $HTML.="<th>$LANG[$i]</th></tr>\n";
-# 	}
-# 	else{
-# 	    my $filebase=$$parsesamples{"$LANG[$i]"};
-# 	    my $truncfilebase=$filebase;
-# 	    $truncfilebase=~s/^.+\/$CORPUS\//$CORPUS\//;
-# 	    $filebase=~s/\_parse_sample\.html$//;
-# 	    if (-s $downloaddir."/".$truncfilebase && $truncfilebase=~/$CORPUS\/../){
-# 		$HTML.="<th><a rel=\"nofollow\" href=\"$truncfilebase\">$LANG[$i]</a></th></tr>\n";
-# 	    }    
-# 	    else{
-# 		$HTML.="<th>$LANG[$i]</th></tr>\n";
-# 	    }
-# 	}
-
     }
     
     #---------------------------------------
@@ -954,13 +818,12 @@ sub DownloadTable{
 	    $SRCCOUNT=0;
 	}
 	#---------------------------------
-	if(-d "$annotated/$$lang{$l}"){
-	    $HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$$lang{$l}_parse.tar.gz\">$l</a></th>\n";
+	if(-d "parsed/$$lang{$l}"){
+	    $HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$$lang{$l}.parsed.tar.gz\">$l</a></th>\n";
 	}
 	else{
 	    $HTML.="<th>$l</th>\n";
 	}
-##	$HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$$lang{$l}.tar.gz\">$l</a></th>\n";
     }
     $HTML.="<th></th></tr>\n";
 
@@ -1011,11 +874,11 @@ sub store_info{
     my $lang = shift;     # hash of languages in that corpus (incl corpus name)
     my $bitexts = shift;  # hash of bitexts (xces alignment files
 
-    tie my %LangNames,"DB_File",$downloaddir.'/LangNames.db';
-    tie my %Corpora,"DB_File",$downloaddir.'/Corpora.db';
-    tie my %LangPairs,"DB_File",$downloaddir.'/LangPairs.db';
-    tie my %Bitexts,"DB_File",$downloaddir.'/Bitexts.db';
-    tie my %Info,"DB_File",$downloaddir.'/Info.db';
+    tie my %LangNames,"DB_File",$htmldir.'/LangNames.db';
+    tie my %Corpora,"DB_File",$htmldir.'/Corpora.db';
+    tie my %LangPairs,"DB_File",$htmldir.'/LangPairs.db';
+    tie my %Bitexts,"DB_File",$htmldir.'/Bitexts.db';
+    tie my %Info,"DB_File",$htmldir.'/Info.db';
 
     my %nrFiles=();
     my %nrSents=();

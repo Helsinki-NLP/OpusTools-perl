@@ -9,6 +9,7 @@ use FindBin qw($Bin);
 use strict;
 use DB_File;
 use Getopt::Std;
+use File::Basename;
 
 use lib "$Bin/../../lib";
 use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
@@ -30,7 +31,7 @@ my $UplugHome   = $Bin;
 $UplugHome      =~s/(OPUS\/.*)$/$1/;
 $UplugHome      = $opt_o if (-d $opt_o);
 my $UplugTools  = $opt_t || $UplugHome."/tools/public/uplug/uplug-main/tools";
-my $downloaddir = $opt_d || $UplugHome."/download/";
+my $downloaddir = $opt_d || $UplugHome."/download";
 my $htmldir     = $opt_h || $UplugHome."/public_html";
 
 
@@ -86,16 +87,16 @@ my ($total,$lang)=&Statistics(\%lang,\%bitexts);
 
 print &p().$total.&p();
 print &h3('Download');
-if (-e "$downloaddir/$CORPUS/$CORPUS$VERSION.tar.gz"){
+if (-e "$downloaddir/$CORPUS$VERSION.tar.gz"){
     print "Complete download of aligned documents (in XML): ";
-    print &a({-href=>"download.php?f=$CORPUS/$CORPUS$VERSION.tar.gz"},"$CORPUS$VERSION.tar.gz");
-    my $size=`du -hs $downloaddir/$CORPUS/$CORPUS$VERSION.tar.gz | cut -f1`;
+    print &a({-href=>"download.php?f=$CORPUS$VERSION.tar.gz"},"$CORPUS$VERSION.tar.gz");
+    my $size=`du -hs $downloaddir/$CORPUS$VERSION.tar.gz | cut -f1`;
     print ' (',$size,')',&br(),&p();
 }
-elsif (-e "$downloaddir/$CORPUS/$CORPUS$VERSION.tar"){
+elsif (-e "$downloaddir/$CORPUS$VERSION.tar"){
     print "Complete download of aligned documents (in XML): ";
-    print &a({-href=>"download.php?f=$CORPUS/$CORPUS$VERSION.tar"},"$CORPUS$VERSION.tar");
-    my $size=`du -hs $downloaddir/$CORPUS/$CORPUS$VERSION.tar | cut -f1`;
+    print &a({-href=>"download.php?f=$CORPUS$VERSION.tar"},"$CORPUS$VERSION.tar");
+    my $size=`du -hs $downloaddir/$CORPUS$VERSION.tar | cut -f1`;
     print ' (',$size,')',&br(),&p();
 }
 
@@ -683,7 +684,7 @@ sub DownloadTable{
 	}
 	$SRCCOUNT=0;
 
-	$HTML.="<tr><th><a rel=\"nofollow\" href=\"download.php?f=$$lang{$LANG[$i]}.tar.gz\">$LANG[$i]</a></th>\n";
+	$HTML.="<tr><th><a rel=\"nofollow\" href=\"download.php?f=$CORPUS/$LANG[$i].tar.gz\">$LANG[$i]</a></th>\n";
 
 	foreach my $j (0..$i-1){
 	    $SRCCOUNT++;
@@ -691,13 +692,17 @@ sub DownloadTable{
 		$HTML.="<th>$LANG[$i]</th>\n";
 		$SRCCOUNT=0;
 	    }
-	    my $bitext=$$bitexts{"$LANG[$i]-$LANG[$j]"};
+	    my $bitext   = $$bitexts{"$LANG[$i]-$LANG[$j]"};
+	    my $langpair = "$LANG[$i]-$LANG[$j]";
 	    if (not defined $bitext){
-		$bitext=$$bitexts{"$LANG[$j]-$LANG[$i]"};
+		$bitext   = $$bitexts{"$LANG[$j]-$LANG[$i]"};
+		$langpair = "$LANG[$j]-$LANG[$i]";
 	    }
 	    if (-s $bitext){
-		my $ces=$bitext;
-		$ces=~s/(\/[^\/]+)$/\/xml$1/;
+		my $ces = $CORPUS.'/'.basename($bitext);
+		unless (-s "$downloaddir/$ces"){
+		    system("cp $bitext $downloaddir/$ces");
+		}
 		my $SrcLang = 
 		    &iso639_ThreeToName(&iso639_TwoToThree($LANG[$i]));
 		my $TrgLang = 
@@ -728,7 +733,7 @@ sub DownloadTable{
 	    $truncfilebase=~s/^.+\/$CORPUS\//$CORPUS\//;
 	    $filebase=~s/\_sample\.html$//;
 	    $HTML.='<th>';
-	    if (-s $downloaddir."/".$truncfilebase && $truncfilebase=~/$CORPUS\/../){
+	    if (-s $htmldir."/".$truncfilebase && $truncfilebase=~/$CORPUS\/../){
 		my $SrcLangName = 
 		    &iso639_ThreeToName(&iso639_TwoToThree($LANG[$i]));
 		my $TrgLangName = $SrcLangName;
@@ -772,7 +777,7 @@ sub DownloadTable{
 	    $filebase=~s/\_sample\.html$//;
 	    $HTML.='<td>';
 	    
-	    if (-s $downloaddir."/".$truncfilebase && $truncfilebase=~/$CORPUS\/../){
+	    if (-s $htmldir."/".$truncfilebase && $truncfilebase=~/$CORPUS\/../){
 		my $SrcLangName = 
 		    &iso639_ThreeToName(&iso639_TwoToThree($LANG[$i]));
 		my $TrgLangName = 
@@ -804,8 +809,8 @@ sub DownloadTable{
 	    $SRCCOUNT=0;
 	}
 	#---------------------------------
-	if(-d "parsed/$$lang{$l}"){
-	    $HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$$lang{$l}.parsed.tar.gz\">$l</a></th>\n";
+	if(-d "parsed/$l"){
+	    $HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$CORPUS/$l.parsed.tar.gz\">$l</a></th>\n";
 	}
 	else{
 	    $HTML.="<th>$l</th>\n";

@@ -78,7 +78,11 @@ my $OVERWRITE  = $opt_o || 0;           # overwrite old CWB data
 my $ASSUME_YES = $opt_y || 0;           # assume yes to overwrite
 my $VERBOSE    = $opt_v || 0;           # verbose output
 
-my @LANG       = @ARGV;                 # languages to be processed (sub-dirs!)
+my @TMPLANG    = @ARGV;                 # languages to be processed (sub-dirs!)
+my @LANG       = ();                    # use only the ones for which we have data!
+foreach my $l (@TMPLANG){
+    push (@LANG,$l) if (-d "$XMLDIR/$l");
+}
 my @ALGLANG    = @LANG;
 
 ## if aligned languages are given then use only those

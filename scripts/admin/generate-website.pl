@@ -916,11 +916,11 @@ sub store_info{
 				$links,$SrcToken,$TrgToken));
 	    push(@resources,$descr);
 	}
-	if (-e "$downloaddir/$corpus/xml/$src-$trg.xml.gz"){
+	if (-e "$downloaddir/$corpus/$src-$trg.xml.gz"){
 	    my ($nrFiles,$nrLinks,$nrSrc,$nrTrg) = 
 		&CESStatistics($$bitexts{"$src-$trg"});
 	    my $descr = 'xces=';
-	    $descr .= join(':',("$corpus/xml/$src-$trg.xml.gz",
+	    $descr .= join(':',("$corpus/$src-$trg.xml.gz",
 				"$corpus/$src.tar.gz",
 				"$corpus/$trg.tar.gz",
 				$nrFiles,$nrLinks,$nrSrc,$nrTrg));

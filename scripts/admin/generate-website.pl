@@ -16,15 +16,21 @@ use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
 
 our ($opt_s, $opt_m, $opt_e, $opt_o, $opt_t, $opt_d, $opt_h, $opt_g, $opt_G);
-getopts('s:m:o:t:d:h:gG');
+getopts('e:s:m:o:t:d:h:gG');
 
-my $indir       = '.';
+my $PWD     = $ENV{PWD};
+
+my $homedir = $PWD;
+my $xmldir  = 'xml';
+my @paths   = split(/\//,$homedir);
+my $CORPUS  = $paths[-1];
+my $VERSION = '';
+
 my $UplugHome   = $Bin;
-$UplugHome =~s/(OPUS\/.*)$/$1/;
-
-my $UplugHome   = $opt_o if (-d $opt_o);
+$UplugHome      =~s/(OPUS\/.*)$/$1/;
+$UplugHome      = $opt_o if (-d $opt_o);
 my $UplugTools  = $opt_t || $UplugHome."/tools/public/uplug/uplug-main/tools";
-my $downloaddir = $opt_d || $UplugHome."/download";
+my $downloaddir = $opt_d || $UplugHome."/download/";
 my $htmldir     = $opt_h || $UplugHome."/public_html";
 
 
@@ -35,14 +41,13 @@ my $EXT     = $opt_e || 'xml';  # file extension for alignment files
 my $gzip    = $opt_g ? 0 : 1;   # 1 --> everything is compressed with gzip
 my $AlwaysGzip = $opt_G || 0;   # 1 --> ignore uncompressed files
 
-my $VERSION = '';
 if (@ARGV){
-    $indir=shift(@ARGV);
+    $CORPUS = shift(@ARGV);
 }
 if (@ARGV){
-    $VERSION=shift(@ARGV); # corpus version number
+    $VERSION = shift(@ARGV); # corpus version number
 }
-my ($CORPUS)=split(/\//,$indir);
+
 
 #-------------------------------------------------------------------------
 
@@ -55,14 +60,13 @@ my $CES2TMX="$UplugTools/xces2tmx";
 
 my $PACK="tar -czf";
 my $RMALL="rm -fr";
-my $PWD=$ENV{PWD};
 binmode(STDOUT,":encoding(utf-8)");
 
 my %bitexts;
 my %lang;
 
-#&Unpack($indir);
-&GetBitexts($indir,\%lang,\%bitexts);
+#&Unpack($xmldir);
+&GetBitexts($xmldir,\%lang,\%bitexts);
 &store_info($CORPUS,\%lang,\%bitexts);
 
 my $header=&HtmlHeader();
@@ -160,11 +164,7 @@ sub MakeSampleFiles{
     my $samples=shift;
     my $parsesamples=shift;
     foreach (keys %{$lang}){
-	$$parsesamples{$_}=$htmldir."/".$$lang{$_};
-	$$parsesamples{$_}.='_parse_sample.html';
-	$$lang{$_}=~/^(.+)\/(.+)$/;
-	my $currcorpus=$1;
-	my $currlang=$2;
+	$$parsesamples{$_}="$htmldir/$CORPUS/$_\_parse_sample.html";
 	if (not -e $$parsesamples{$_}){
 	    if(-d "parsed/".$$lang{$_}){
 		system "echo '<html><head></head><body><pre>' > $$parsesamples{$_}";
@@ -181,8 +181,7 @@ sub MakeSampleFiles{
 	}
     }
     foreach (keys %{$lang}){
-	$$samples{$_}=$htmldir."/".$$lang{$_};
-	$$samples{$_}.='_sample.html';
+	$$samples{$_}="$htmldir/$CORPUS/$_\_sample.html";
 	if (not -e $$samples{$_}){
 	    system "echo '<html><head></head><body><pre>' > $$samples{$_}";
 	    if ($gzip){
@@ -198,38 +197,25 @@ sub MakeSampleFiles{
     }
     foreach (keys %{$bitexts}){
 	if (-e $$bitexts{$_}){
-	    $$samples{$_}=$htmldir."/".$$bitexts{$_};
-	    $$samples{$_}=~s/\.gz$//;
-	    $$samples{$_}=~s/\.${EXT}$/_sample/;
-	    $$samples{$_}.='.html';
+	    $$samples{$_}="$htmldir/$CORPUS/$_\_sample.html";
 	    if (not -e $$samples{$_}){
 		print STDERR "make sample files from $$bitexts{$_}!\n";
-		system "$CESREAD -d $indir $$bitexts{$_} >$$samples{$_} 2> /dev/null";
+		system "$CESREAD -d $xmldir $$bitexts{$_} >$$samples{$_} 2> /dev/null";
 		print STDERR "cesread: $CESREAD\n";
 	    }
 	    if (-z $$samples{$_}){delete $$samples{$_};} #check if empty file
-	    else{
-		my $base = $htmldir."/".$$bitexts{$_};
-		$base=~s/\.gz$//;
-		$base=~s/\.${EXT}$//;
-		my $src='src';
-		my $trg='trg';
-		if ($base=~/(..)-(..)/){
-		    ($src,$trg)=($1,$2);
-		}
-	    }
 	}
     }
 }
 
 sub Unpack{
-    my $indir=shift;
-    opendir(DIR, $indir);
+    my $xmldir=shift;
+    opendir(DIR, $xmldir);
     my @files=grep { /tar\.gz/ } readdir(DIR);
     closedir DIR;
     foreach (@files){
-	print STDERR "unpack $indir/$_!\n";
-	system "tar -xzf $indir/$_";
+	print STDERR "unpack $xmldir/$_!\n";
+	system "tar -xzf $xmldir/$_";
     }
 }
 
@@ -242,15 +228,15 @@ sub Unpack{
 
 
 sub GetBitexts{
-    my $indir=shift;
+    my $xmldir=shift;
     my $lang=shift;
     my $bitexts=shift;
 
-    opendir(DIR, $indir);
+    opendir(DIR, $xmldir);
     my @files=readdir(DIR);
     closedir DIR;
 
-    my @subdir=grep {-d "$indir/$_" } @files;
+    my @subdir=grep {-d "$xmldir/$_" } @files;
     my @algfiles=grep { /\.$EXT/ } @files;
     my %alg=();
     foreach (@algfiles){$alg{$_}=1;}
@@ -258,26 +244,26 @@ sub GetBitexts{
     foreach my $s (@subdir){
 	foreach my $t (@subdir){
 	    if (exists $alg{"$s-$t.$EXT.gz"}){
-		$$lang{$s}="$indir/$s";
-		$$lang{$t}="$indir/$t";
-		$$bitexts{"$s-$t"}="$indir/$s-$t.$EXT.gz";
+		$$lang{$s}="$xmldir/$s";
+		$$lang{$t}="$xmldir/$t";
+		$$bitexts{"$s-$t"}="$xmldir/$s-$t.$EXT.gz";
 	    }
 	    elsif (exists $alg{"$s$t.$EXT.gz"}){
-		$$lang{$s}="$indir/$s";
-		$$lang{$t}="$indir/$t";
-		$$bitexts{"$s-$t"}="$indir/$s$t.$EXT.gz";
+		$$lang{$s}="$xmldir/$s";
+		$$lang{$t}="$xmldir/$t";
+		$$bitexts{"$s-$t"}="$xmldir/$s$t.$EXT.gz";
 	    }
 	    elsif (exists $alg{"$s$t.$EXT"}){
 		$gzip = 0 unless ($AlwaysGzip);     # ---> assume that everything is uncompressed!
-		$$lang{$s}="$indir/$s";
-		$$lang{$t}="$indir/$t";
-		$$bitexts{"$s-$t"}="$indir/$s$t.$EXT";
+		$$lang{$s}="$xmldir/$s";
+		$$lang{$t}="$xmldir/$t";
+		$$bitexts{"$s-$t"}="$xmldir/$s$t.$EXT";
 	    }
 	    elsif (exists $alg{"$s-$t.$EXT"}){
 		$gzip = 0 unless ($AlwaysGzip);     # ---> assume that everything is uncompressed!
-		$$lang{$s}="$indir/$s";
-		$$lang{$t}="$indir/$t";
-		$$bitexts{"$s-$t"}="$indir/$s-$t.$EXT";
+		$$lang{$s}="$xmldir/$s";
+		$$lang{$t}="$xmldir/$t";
+		$$bitexts{"$s-$t"}="$xmldir/$s-$t.$EXT";
 	    }
 	    else{
 		my $src=$s;
@@ -285,26 +271,26 @@ sub GetBitexts{
 		$src=~s/^[^\_]*\_//;
 		$trg=~s/^[^\_]*\_//;
 		if (exists $alg{"$s-$t.$EXT.gz"}){
-		    $$lang{$s}="$indir/$s";
-		    $$lang{$t}="$indir/$t";
-		    $$bitexts{"$s-$t"}="$indir/$s-$t.$EXT.gz";
+		    $$lang{$s}="$xmldir/$s";
+		    $$lang{$t}="$xmldir/$t";
+		    $$bitexts{"$s-$t"}="$xmldir/$s-$t.$EXT.gz";
 		}
 		elsif (exists $alg{"$src$trg.$EXT.gz"}){
-		    $$bitexts{"$src-$trg"}="$indir/$src$trg.$EXT.gz";
-		    $$lang{$src}="$indir/$s";
-		    $$lang{$trg}="$indir/$t";
+		    $$bitexts{"$src-$trg"}="$xmldir/$src$trg.$EXT.gz";
+		    $$lang{$src}="$xmldir/$s";
+		    $$lang{$trg}="$xmldir/$t";
 		}
 		elsif (exists $alg{"$src$trg.$EXT"}){
 		    $gzip = 0 unless ($AlwaysGzip);;  # ---> assume that everything is uncompressed!
-		    $$bitexts{"$src-$trg"}="$indir/$src$trg.$EXT";
-		    $$lang{$src}="$indir/$s";
-		    $$lang{$trg}="$indir/$t";
+		    $$bitexts{"$src-$trg"}="$xmldir/$src$trg.$EXT";
+		    $$lang{$src}="$xmldir/$s";
+		    $$lang{$trg}="$xmldir/$t";
 		}
 		elsif (exists $alg{"$src-$trg.$EXT"}){
 		    $gzip = 0 unless ($AlwaysGzip);;  # ---> assume that everything is uncompressed!
-		    $$bitexts{"$src-$trg"}="$indir/$src-$trg.$EXT";
-		    $$lang{$src}="$indir/$s";
-		    $$lang{$trg}="$indir/$t";
+		    $$bitexts{"$src-$trg"}="$xmldir/$src-$trg.$EXT";
+		    $$lang{$src}="$xmldir/$s";
+		    $$lang{$trg}="$xmldir/$t";
 		}
 	    }
 	}
@@ -670,7 +656,7 @@ sub DownloadTable{
 	    $HTML.="<th></th>\n";
 	    $SRCCOUNT=0;
 	}
-	$HTML.="<th><a rel=\"nofollow\" href=\"$indir/$l\_sample.html\">$l</a></th>\n";
+	$HTML.="<th><a rel=\"nofollow\" href=\"$CORPUS/$l\_sample.html\">$l</a></th>\n";
     }
     $HTML.="<th></th></tr>\n";
 

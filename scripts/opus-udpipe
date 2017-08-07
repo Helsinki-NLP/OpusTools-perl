@@ -59,6 +59,10 @@ use XML::Writer;
 
 use Ufal::UDPipe;
 
+use File::Basename;
+use FindBin qw($Bin);
+use lib $Bin;
+use OPUS::Tools::ISO639;
 
 our ($opt_l, $opt_m, $opt_v, $opt_D, $opt_L, $opt_M);
 
@@ -102,46 +106,64 @@ else{
 }
 
 
+## NEW: scan all model names in ModelDir
+##      (rely on name-to-iso639 conversion)
+
+my %UDmodels = ();
+my @AllModels = glob("$ModelDir/*-ud-*.udpipe");
+foreach (@AllModels){
+    my $modelbase = basename($_);
+    if ($modelbase=~/^(.+)\-(ud)\-$version.udpipe$/){
+	my $lang = $1;
+	$lang =~s/\_/ /g;
+	my $id = iso639_NameToTwo($lang);
+	if ($id=~/^..(\_..)?$/){
+	    $UDmodels{$id} = $modelbase;
+	}
+    }
+}
 
 
-my %UDmodels = (
-# ancient-greek-proiel-ud-$version.udpipe
-# ancient-greek-ud-$version.udpipe
-    ar => "arabic-ud-$version.udpipe",
-    eu => "basque-ud-$version.udpipe",
-    bg => "bulgarian-ud-$version.udpipe",
-    hr => "croatian-ud-$version.udpipe",
-    cs => "czech-ud-$version.udpipe",
-    da => "danish-ud-$version.udpipe",
-    nl => "dutch-ud-$version.udpipe",
-    en => "english-ud-$version.udpipe",
-    et => "estonian-ud-$version.udpipe",
-# finnish-ftb-ud-$version.udpipe",
-    ft => "finnish-ud-$version.udpipe",
-    fr => "french-ud-$version.udpipe",
-    de => "german-ud-$version.udpipe",
-# gothic-ud-$version.udpipe
-    el => "greek-ud-$version.udpipe",
-    he => "hebrew-ud-$version.udpipe",
-    hi => "hindi-ud-$version.udpipe",
-    hu => "hungarian-ud-$version.udpipe",
-    id => "indonesian-ud-$version.udpipe",
-    ga => "irish-ud-$version.udpipe",
-    it => "italian-ud-$version.udpipe",
-# latin-itt-ud-$version.udpipe
-# latin-proiel-ud-$version.udpipe
-    la => "latin-ud-$version.udpipe",
-    nb => "norwegian-ud-$version.udpipe",
-# old-church-slavonic-ud-$version.udpipe
-    fa => "persian-ud-$version.udpipe",
-    pl => "polish-ud-$version.udpipe",
-    pt => "portuguese-ud-$version.udpipe",
-    ro => "romanian-ud-$version.udpipe",
-    sl => "slovenian-ud-$version.udpipe",
-    es => "spanish-ud-$version.udpipe",
-    sv => "swedish-ud-$version.udpipe",
-    ta => "tamil-ud-$version.udpipe"
-    );
+## OLD: fixed list of models
+
+# my %UDmodels = (
+# # ancient-greek-proiel-ud-$version.udpipe
+# # ancient-greek-ud-$version.udpipe
+#     ar => "arabic-ud-$version.udpipe",
+#     eu => "basque-ud-$version.udpipe",
+#     bg => "bulgarian-ud-$version.udpipe",
+#     hr => "croatian-ud-$version.udpipe",
+#     cs => "czech-ud-$version.udpipe",
+#     da => "danish-ud-$version.udpipe",
+#     nl => "dutch-ud-$version.udpipe",
+#     en => "english-ud-$version.udpipe",
+#     et => "estonian-ud-$version.udpipe",
+# # finnish-ftb-ud-$version.udpipe",
+#     fi => "finnish-ud-$version.udpipe",
+#     fr => "french-ud-$version.udpipe",
+#     de => "german-ud-$version.udpipe",
+# # gothic-ud-$version.udpipe
+#     el => "greek-ud-$version.udpipe",
+#     he => "hebrew-ud-$version.udpipe",
+#     hi => "hindi-ud-$version.udpipe",
+#     hu => "hungarian-ud-$version.udpipe",
+#     id => "indonesian-ud-$version.udpipe",
+#     ga => "irish-ud-$version.udpipe",
+#     it => "italian-ud-$version.udpipe",
+# # latin-itt-ud-$version.udpipe
+# # latin-proiel-ud-$version.udpipe
+#     la => "latin-ud-$version.udpipe",
+#     nb => "norwegian-ud-$version.udpipe",
+# # old-church-slavonic-ud-$version.udpipe
+#     fa => "persian-ud-$version.udpipe",
+#     pl => "polish-ud-$version.udpipe",
+#     pt => "portuguese-ud-$version.udpipe",
+#     ro => "romanian-ud-$version.udpipe",
+#     sl => "slovenian-ud-$version.udpipe",
+#     es => "spanish-ud-$version.udpipe",
+#     sv => "swedish-ud-$version.udpipe",
+#     ta => "tamil-ud-$version.udpipe"
+#     );
 
 
 # just list supported languages and models

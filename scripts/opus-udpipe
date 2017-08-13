@@ -189,7 +189,7 @@ if ($opt_D){
 
 my $modelFile = $ModelDir.'/'.$UDmodels{$lang};
 
-print STDERR "Loading model: ";
+print STDERR "Loading model $UDmodels{$lang} ... ";
 my $model = Ufal::UDPipe::Model::load($modelFile);
 $model or die "Cannot load model from file '$modelFile'\n";
 print STDERR "done\n";

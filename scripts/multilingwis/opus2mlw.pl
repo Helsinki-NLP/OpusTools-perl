@@ -2,6 +2,8 @@
 #-*-perl-*-
 
 use strict;
+use warnings;
+
 use vars qw($opt_d);
 use Getopt::Std;
 use File::Basename;
@@ -13,11 +15,14 @@ binmode(STDERR, ":utf8");
 
 getopts('d:');
 
-my $CorpusDir = $opt_d || '../parsed';
-
+my $CorpusDir  = $opt_d || '../parsed';
 my $DocIdFile  = shift(@ARGV);
 my $SentIdFile = shift(@ARGV);
-my $WordIdFile = shift(@ARGV);
+
+my %docid = ();
+my %sentid = ();
+tie %docid,  'DB_File', $DocIdFile;
+tie %sentid,  'DB_File', $SentIdFile;
 
 # open all alignment DBs
 my @alg = ();
@@ -30,103 +35,78 @@ foreach my $db (@alg){
     push(@dblang,$$db{__srclang__});
 }
 
-# read file with unique doc ids
-my %docid=();
-open F,"<$DocIdFile" || die "cannot open $DocIdFile";
-while (<F>){
-    chomp;
-    my ($id,$file) = split(/\t/);
-    $docid{$file} = $id;
-}
-close F;
-
-# read file with unique word ids
-my @wordid=();
-open F,"<$WordIdFile" || die "cannot open $WordIdFile";
-while (<F>){
-    chomp;
-    my ($id,$file,$sid) = split(/\t/);
-    next if (not exists $docid{$file});
-    my $doc = $docid{$file};
-    $wordid[$doc]{$sid} = $id;
-}
-close F;
-
-
-my $current = undef;
+my $current = '';
 my @sentences = ();
 my %sentids = ();
 my %done = ();
 my $did;
 my $lang;
 
-open S,"<$SentIdFile" || die "cannot open $SentIdFile";
-while (<S>){
-    chomp;
-    my ($id,$doc,$sid) = split(/\t/);
-    next if (not exists $docid{$doc});
 
-    if ($doc ne $current){
-	PrintSentences($current,\@sentences) if ($current);
-	@sentences = ();
-	ReadDocument($doc,\@sentences);
-	foreach my $s (0..$#sentences){
-	    $sentids{$sentences[$s][0][9]} = $s;
-	}
-	$current = $doc;
-	$did = $docid{$doc};
-	$lang = $doc;
-	$lang =~s/^([^\/]+)\/.*$/$1/;
-	if ($lang eq 'sv'){
-	    print '';
-	}
-    }
+while (<STDIN>){
+    if (/^(.*)\:\s*<s\s+[^>]*id\=\"([^\"]+)\"/){
+	my ($doc,$sid) = ($1,$2);
 
-    foreach my $db (@alg){
-	if ($lang ne $$db{__srclang__}){
-	    next if ($lang ne $$db{__trglang__});
+	if ($doc ne $current){
+	    PrintSentences($did,$lang,\@sentences) if ($current);
+	    @sentences = ();
+	    ReadDocument($doc,\@sentences);
+	    foreach my $s (0..$#sentences){
+		$sentids{$sentences[$s][0][9]} = $s;
+	    }
+	    $current = $doc;
+	    $did = $docid{$doc};
+	    $lang = $doc;
+	    $lang =~s/^([^\/]+)\/.*$/$1/;
 	}
-	my ($tdoc,$sids,$tids,$walign) = split(/\t/,$$db{"$doc:$sid"});
-	AddAlignment($sentences[$sentids{$sid}],$tdoc,$tids,$walign);
-    }
-    foreach my $w (0..$#{$sentences[$sentids{$sid}]}){
-	$sentences[$sentids{$sid}][$w][9] = $id;       # set global sid
+
+	foreach my $db (@alg){
+	    if ($lang ne $$db{__srclang__}){
+		next if ($lang ne $$db{__trglang__});
+	    }
+	    if (exists $$db{"$doc:$sid"}){
+		my ($tdoc,$sids,$tids,$walign) = split(/\t/,$$db{"$doc:$sid"});
+		if ($tdoc && $tids && $walign){
+		    AddAlignment($sentences[$sentids{$sid}],$tdoc,$tids,$walign);
+		}
+	    }
+#	    else{
+#		print STDERR "no alignments found for $doc:$sid\n";
+#	    }
+	}
     }
 }
-
-PrintSentences($current,\@sentences) if ($current);
-
+PrintSentences($did,$lang,\@sentences) if ($current);
 
 
 
 sub PrintSentences{
-    my ($doc,$sent) = @_;
-    my $did = $docid{$doc};
-    my $lang = $doc;
-    $lang =~s/^([^\/]+)\/.*$/$1/;
+    my ($did,$lang,$sent) = @_;
+
     foreach my $s (@{$sent}){
+
 	my $sid = $$s[0][9];
+	my ($id,$wstart,$nr) = split(/\t/,$sentid{"$did:$sid"});
+
 	next if ($done{"$did:$sid"});
 
 	## replace head with global token ID
 	foreach my $w (0..$#{$s}){
-	    my $head = $$s[$w][6];
-	    if ($head > 0){
-		my $headid = $wordid[$did]{$$s[$head-1][8]};
-		$$s[$w][6] = $headid;
+	    if ($$s[$w][6] > 0){
+		$$s[$w][6] = $wstart + $$s[$w][6] - 1;
 	    }
 	}
 
 	## set global IDs (token, sentence, doc)
 	foreach my $w (0..$#{$s}){
-	    my $wid = $wordid[$did]{$$s[$w][8]};
+	    my $wid = $wstart + $w;
 	    if ($done{$wid}){
 		print STDERR "Word $wid already done?! (skip sentence $sid)\n";
 		next;
 	    }
 	    $done{$wid}++;
 	    $$s[$w][8] = $wid;
-	    $$s[$w][9] = $sid;
+	    $$s[$w][9] = $id;
 	    $$s[$w][10] = $did;
 	    $$s[$w][11] = '1' unless (defined $$s[$w][11]);
 	    $$s[$w][12] = $lang;
@@ -154,19 +134,12 @@ sub AddAlignment{
 	my ($s,$t) = split(/\-/,$a);
 	$links{$s}{$t} = 1;
     }
-
-    ## get all word IDs for all aligned sentences
-    ## NOTE: assume that we have regular IDs that correspond
-    ##       to sentence IDs ---> DANGEROUS!
     
     my @wids = ();
-    foreach (@sentaligns){
-	my $id = $_;
-	$id =~s/^s/w/;
-	my $wnr = 1;
-	while (exists $wordid[$did]{"$id.$wnr"}){
-	    push(@wids,"$id.$wnr");
-	    $wnr++;
+    foreach my $sid (@sentaligns){
+	my ($id,$w,$n) = split(/\t/,$sentid{"$did:$sid"});
+	foreach my $x (0..$n-1){
+	    push(@wids,$w+$x);
 	}
     }
 
@@ -176,79 +149,19 @@ sub AddAlignment{
 	    $$sentence[$w][13] = '0';     ## TODO: is that OK?
 	    next;
 	}
-	my @links = ();
+	my @linked = ();
 	foreach my $l (sort {$a <=> $b} keys %{$links{$w}}){
-	    if ($wordid[$did]{$wids[$l]}){
-		push(@links,$wordid[$did]{$wids[$l]});
-	    }
-	    else{
-		print STDERR "no id found for token $l ($wids[$l]) in doc $docalign sent $$sentence[$w][9]\n";
+	    if ($l<=$#wids){
+		push(@linked,$wids[$l]);
 	    }
 	}
-	if (@links){
+	if (@linked){
 	    if ($$sentence[$w][13]){
-		$$sentence[$w][13] .= '|'.join('|',@links);
+		$$sentence[$w][13] .= '|'.join('|',@linked);
 	    }
 	    else{
-		$$sentence[$w][13] = join('|',@links);
+		$$sentence[$w][13] = join('|',@linked);
 	    }
-	}
-    }
-}
-
-
-
-
-sub AddAlignmentOLD{
-    my ($sdocid,$tdocid,$sent,$alg,$reverse) = @_;
-    foreach my $s (@{$sent}){
-	my $sid = $$s[0][9];
-	next unless (exists $$alg{$sid});
-	
-	## get all word alignments
-	my @alg = split(/\s+/,$$alg{$sid}[2]);
-	my %links = ();
-	foreach my $a (@alg){
-	    my ($sl,$tl) = split(/\-/,$a);
-	    ($sl,$tl) = ($tl,$sl) if ($reverse);
-	    $links{$sl}{$tl} = 1;
-	}
-
-	## get all word IDs for all aligned sentences
-	## NOTE: assume that we have regular IDs that correspond
-	##       to sentence IDs ---> DANGEROUS!
-
-	my @tids = split(/\s+/,$$alg{$sid}[1]);
-	if ($#tids){
-	    print '';
-	}
-	my @wids = ();
-	foreach (@tids){
-	    my $id = $_;
-	    $id =~s/^s/w/;
-	    my $wnr = 1;
-	    while (exists $wordid[$tdocid]{"$id.$wnr"}){
-		push(@wids,"$id.$wnr");
-		$wnr++;
-	    }
-	}
-
-	## run through all words in the current sentence
-	foreach my $w (0..$#{$s}){
-	    unless (exists $links{$w}){
-		$$s[$w][13] = '0';         ## TODO: is that OK?
-		next;
-	    }
-	    my @links = ();
-	    foreach my $l (sort {$a <=> $b} keys %{$links{$w}}){
-		if ($wordid[$tdocid]{$wids[$l]}){
-		    push(@links,$wordid[$tdocid]{$wids[$l]});
-		}
-		else{
-		    print STDERR "no id found for token $l ($wids[$l]) in doc $tdocid sent $$alg{$sid}[1]\n";
-		}
-	    }
-	    $$s[$w][13] = join('|',@links);
 	}
     }
 }
@@ -286,18 +199,18 @@ sub XmlTagStart{
     elsif ($e eq 'w'){
 	my $idx = @{$$p{SENT}[-1]};
 	$$p{SENT}[-1][$idx][0] = $idx+1;
-	$$p{SENT}[-1][$idx][2] = $a{lemma};
-	$$p{SENT}[-1][$idx][3] = $a{upos};
-	$$p{SENT}[-1][$idx][4] = $a{xpos};
+	$$p{SENT}[-1][$idx][2] = $a{lemma} || '';
+	$$p{SENT}[-1][$idx][3] = $a{upos} || '_';
+	$$p{SENT}[-1][$idx][4] = $a{xpos} || '_';
 	$$p{SENT}[-1][$idx][5] = $a{feats} ? $a{feats} : '_';
-	$$p{SENT}[-1][$idx][6] = $a{head};
-	$$p{SENT}[-1][$idx][7] = $a{deprel};
+	$$p{SENT}[-1][$idx][6] = $a{head} || 0;
+	$$p{SENT}[-1][$idx][7] = $a{deprel} || 'ROOT';
 	$$p{SENT}[-1][$idx][8] = $a{id};
 	$$p{SENT}[-1][$idx][9] = $$p{SID};
 	$$p{SENT}[-1][$idx][11] = $$p{SPACE};
 	$$p{WID}{$a{id}} = $idx+1;
 	$$p{OPENW} = 1;
-	if ($a{misc}=~/SpaceAfter=No/){
+	if (exists $a{misc} && $a{misc}=~/SpaceAfter=No/){
 	    $$p{SPACE} = 0;
 	}
 	else{

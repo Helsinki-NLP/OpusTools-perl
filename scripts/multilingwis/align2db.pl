@@ -68,4 +68,4 @@ while (<S>){
 }
 
 $alg{"__srclang__"} = $srclang;
-$alg{"__trglang__"} = $srclang;
+$alg{"__trglang__"} = $trglang;

@@ -48,6 +48,7 @@ while (<STDIN>){
 	my ($doc,$sid) = ($1,$2);
 
 	if ($doc ne $current){
+	    print STDERR "processing $doc ...\n";
 	    PrintSentences($did,$lang,\@sentences) if ($current);
 	    @sentences = ();
 	    ReadDocument($doc,\@sentences);
@@ -91,6 +92,7 @@ sub PrintSentences{
 	next if ($done{"$did:$sid"});
 
 	## replace head with global token ID
+	## TODO: do we need to do that?
 	foreach my $w (0..$#{$s}){
 	    if ($$s[$w][6] > 0){
 		$$s[$w][6] = $wstart + $$s[$w][6] - 1;
@@ -105,6 +107,10 @@ sub PrintSentences{
 		next;
 	    }
 	    $done{$wid}++;
+	    ## avoid single underscore
+	    $$s[$w][1] = '__' if ($$s[$w][1] eq '_');
+	    ## copy word form if no lemma is given
+	    $$s[$w][2] = $$s[$w][1] unless ($$s[$w][2]);
 	    $$s[$w][8] = $wid;
 	    $$s[$w][9] = $id;
 	    $$s[$w][10] = $did;
@@ -199,7 +205,7 @@ sub XmlTagStart{
     elsif ($e eq 'w'){
 	my $idx = @{$$p{SENT}[-1]};
 	$$p{SENT}[-1][$idx][0] = $idx+1;
-	$$p{SENT}[-1][$idx][2] = $a{lemma} || '';
+	$$p{SENT}[-1][$idx][2] = $a{lemma};
 	$$p{SENT}[-1][$idx][3] = $a{upos} || '_';
 	$$p{SENT}[-1][$idx][4] = $a{xpos} || '_';
 	$$p{SENT}[-1][$idx][5] = $a{feats} ? $a{feats} : '_';
@@ -231,7 +237,7 @@ sub XmlTagEnd{
     if ($e eq 'w'){
 	$$p{WORD}=~s/^\s*//;
 	$$p{WORD}=~s/\s*$//;
-	$$p{SENT}[-1][-1][1] = $$p{WORD};
+	$$p{SENT}[-1][-1][1] = $$p{WORD} || 'EMPTY';
 	$$p{WORD} = '';
 	$$p{OPENW} = 0;
     }

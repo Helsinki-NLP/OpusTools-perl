@@ -292,6 +292,7 @@ foreach my $s (@ALGLANG){
     my $slc = lc($s);
 
     ## read token position file for source language
+    ## TODO: can we skip this if it is not necessary?
     my $srcpos = $TMPDIR.'/'.$slc.'.pos';
     my %SrcPos=();
     ReadPosFile($srcpos,\%SrcPos);
@@ -320,42 +321,52 @@ foreach my $s (@ALGLANG){
 	}
 #	next if (not -d $dir);
 
-	## read token position file for target language
-	my $trgpos = $TMPDIR.'/'.$tlc.'.pos';
-	my %TrgPos=();
-	ReadPosFile($trgpos,\%TrgPos);
-
-	print STDERR "find all alignment files for '$s-$t'\n" if $VERBOSE;
-
-#	my @doc = FindDocuments($dir,$ALIGNTYPE);    # (no genre-subcorpora):
-	my @doc = FindDocuments($dir,$ALIGNTYPE,$opt_i);  # mindepth = 1!!!!
-	if (not @doc){
-	    if ((defined $AllAlignFile) && (-e $AllAlignFile)){
-		@doc = ($AllAlignFile);
-	    }
-	    else{
-		print STDERR "no alignment files found for $s-$t!\n";
-		next;
-	    }
-	}
-	@doc = sort @doc;
-
 	my $srctrg = "$TMPDIR/$slc$tlc.alg";
 	my $trgsrc = "$TMPDIR/$tlc$slc.alg";
 
-	open ALG1,">$srctrg";
-	open ALG2,">$trgsrc";
+	if (-e "$TMPDIR/$slc$tlc.alg" && -e "$TMPDIR/$tlc$slc.alg"){
+	    print STDERR "alignment files found for '$s-$t'! - re-use them\n";
+	}
+	else{
 
-	print ALG1 "$slc\ts\t$tlc\ts\n";
-	print ALG2 "$tlc\ts\t$slc\ts\n";
+	    ## read token position file for target language
+	    my $trgpos = $TMPDIR.'/'.$tlc.'.pos';
+	    my %TrgPos=();
+	    ReadPosFile($trgpos,\%TrgPos);
 
-	foreach my $f (@doc){
-	    Align2CWB($f,$srcpos,$trgpos,\%SrcPos,\%TrgPos);
+	    print STDERR "find all alignment files for '$s-$t'\n" if $VERBOSE;
+
+#	    my @doc = FindDocuments($dir,$ALIGNTYPE);    # (no genre-subcorpora):
+	    my @doc = FindDocuments($dir,$ALIGNTYPE,$opt_i);  # mindepth = 1!!!!
+	    if (not @doc){
+		if ((defined $AllAlignFile) && (-e $AllAlignFile)){
+		    @doc = ($AllAlignFile);
+		}
+		else{
+		    print STDERR "no alignment files found for $s-$t!\n";
+		    next;
+		}
+	    }
+	    @doc = sort @doc;
+
+	    # my $srctrg = "$TMPDIR/$slc$tlc.alg";
+	    # my $trgsrc = "$TMPDIR/$tlc$slc.alg";
+
+	    open ALG1,">$srctrg";
+	    open ALG2,">$trgsrc";
+
+	    print ALG1 "$slc\ts\t$tlc\ts\n";
+	    print ALG2 "$tlc\ts\t$slc\ts\n";
+
+	    foreach my $f (@doc){
+		Align2CWB($f,$srcpos,$trgpos,\%SrcPos,\%TrgPos);
+	    }
+
+	    close ALG1;
+	    close ALG2;
 	}
 
-	close ALG1;
-	close ALG2;
-
+	## TODO: could we skip this if it is not necessary?
 	print STDERR "make alignment index for '$s-$t'\n" if $VERBOSE;
 	MakeCWBalg($srctrg,$trgsrc,$slc,$tlc);
 
@@ -420,11 +431,11 @@ sub MakeCWBalg{
 	system "$CWBALIGNENCODE -v -r $regdir -D $srctrg";
 	system "$CWBALIGNENCODE -v -r $regdir -D $trgsrc";
 
-	copy "$srctrg","$datdir/$srclang$trglang.alg";
-	copy "$trgsrc","$datdir/$trglang$srclang.alg";
+	# copy "$srctrg","$datdir/$srclang$trglang.alg";
+	# copy "$trgsrc","$datdir/$trglang$srclang.alg";
 
-	system "gzip -f $datdir/$trglang$srclang.alg";
-	system "gzip -f $datdir/$srclang$trglang.alg";
+	# system "gzip -f $datdir/$trglang$srclang.alg";
+	# system "gzip -f $datdir/$srclang$trglang.alg";
     }
 }
 

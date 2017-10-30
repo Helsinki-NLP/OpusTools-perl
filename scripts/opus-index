@@ -293,6 +293,7 @@ foreach my $s (@ALGLANG){
 
     ## read token position file for source language
     ## TODO: can we skip this if it is not necessary?
+    print STDERR "read position file for '$slc'\n" if $VERBOSE;
     my $srcpos = $TMPDIR.'/'.$slc.'.pos';
     my %SrcPos=();
     ReadPosFile($srcpos,\%SrcPos);
@@ -330,6 +331,7 @@ foreach my $s (@ALGLANG){
 	else{
 
 	    ## read token position file for target language
+	    print STDERR "read position file for '$tlc'\n" if $VERBOSE;
 	    my $trgpos = $TMPDIR.'/'.$tlc.'.pos';
 	    my %TrgPos=();
 	    ReadPosFile($trgpos,\%TrgPos);

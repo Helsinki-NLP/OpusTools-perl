@@ -135,11 +135,11 @@ $dir = dirname($ALIGN) unless ($dir);
 
 # be a bit more flexible with directories and filenames
 unless(-d $dir){
-    if (-d "/proj/nlpl/datasets/OPUS/corpus/$dir"){
-	$dir = "/proj/nlpl/datasets/OPUS/corpus/$dir/xml";
+    if (-d "/proj/nlpl/data/OPUS/corpus/$dir"){
+	$dir = "/proj/nlpl/data/OPUS/corpus/$dir/xml";
     }
-    elsif (-d "/projects/nlpl/datasets/OPUS/corpus/$dir"){
-	$dir = "/projects/nlpl/datasets/OPUS/corpus/$dir/xml";
+    elsif (-d "/projects/nlpl/data/OPUS/corpus/$dir"){
+	$dir = "/projects/nlpl/data/OPUS/corpus/$dir/xml";
     }
     elsif (-d "/proj/OPUS/corpus/$dir"){
 	$dir = "/proj/OPUS/corpus/$dir/xml";

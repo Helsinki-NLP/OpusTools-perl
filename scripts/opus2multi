@@ -157,11 +157,11 @@ my $pivot = shift(@languages);
 
 # try to find OPUS in case the given xmldir is not found
 unless (-d $xmldir){
-    if (-d "/proj/nlpl/datasets/OPUS/corpus/$xmldir"){
-	$xmldir = "/proj/nlpl/datasets/OPUS/corpus/$xmldir/xml";
+    if (-d "/proj/nlpl/data/OPUS/corpus/$xmldir"){
+	$xmldir = "/proj/nlpl/data/OPUS/corpus/$xmldir/xml";
     }
-    elsif (-d "/projects/nlpl/datasets/OPUS/corpus/$xmldir"){
-	$xmldir = "/projects/nlpl/datasets/OPUS/corpus/$xmldir/xml";
+    elsif (-d "/projects/nlpl/data/OPUS/corpus/$xmldir"){
+	$xmldir = "/projects/nlpl/data/OPUS/corpus/$xmldir/xml";
     }
     elsif (-d "/proj/OPUS/corpus/$xmldir"){
 	$xmldir = "/proj/OPUS/corpus/$xmldir/xml";

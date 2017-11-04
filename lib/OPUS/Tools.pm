@@ -52,9 +52,10 @@ our @EXPORT = qw(set_corpus_info $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLO
 
 our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
 our $OPUS_HTML     = $OPUS_HOME.'/html';
+our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
 our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
 our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
-our $INFODB_HOME   = $OPUS_HTML;
+our $INFODB_HOME   = $OPUS_PUBLIC;
 
 our $VERBOSE = 0;
 

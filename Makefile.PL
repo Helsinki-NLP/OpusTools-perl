@@ -17,6 +17,10 @@ install_script 'scripts/opus-index';
 install_script 'scripts/opus-udpipe';
 install_script 'scripts/opus2moses';
 install_script 'scripts/opus2multi';
+install_script 'scripts/admin/opus-make-website';
+install_script 'scripts/admin/opus-set-info';
+install_script 'scripts/admin/opus-refresh-info';
+install_script 'scripts/admin/opus-delete-info';
 
 requires 'Cwd'             => 0;
 requires 'Test::More'      => 0;

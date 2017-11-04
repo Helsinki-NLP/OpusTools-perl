@@ -44,6 +44,180 @@ Download corpus data in XML from L<http://opus.lingfil.uu.se>
 
 package OPUS::Tools;
 
+use strict;
+use DB_File;
+use Exporter 'import';
+
+our @EXPORT = qw(set_corpus_info $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
+
+our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
+our $OPUS_HTML     = $OPUS_HOME.'/html';
+our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
+our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
+our $INFODB_HOME   = $OPUS_HTML;
+
+our $VERBOSE = 0;
+
+## variables for info databases
+
+my %LangNames;
+my %Corpora;
+my %LangPairs;
+my %Bitexts;
+my %Info;
+
+my $DBOPEN = 0;
+
+
+sub open_info_dbs{
+    tie %LangNames,"DB_File","$INFODB_HOME/LangNames.db";
+    tie %Corpora,"DB_File","$INFODB_HOME/Corpora.db";
+    tie %LangPairs,"DB_File","$INFODB_HOME/LangPairs.db";
+    tie %Bitexts,"DB_File","$INFODB_HOME/Bitexts.db";
+    tie %Info,"DB_File","$INFODB_HOME/Info.db";
+    $DBOPEN = 1;
+}
+
+sub close_info_dbs{
+    untie %LangNames;
+    untie %Corpora;
+    untie %LangPairs;
+    untie %Bitexts;
+    untie %Info;
+    $DBOPEN = 0;
+}
+
+sub set_corpus_info{
+    my ($corpus,$src,$trg,$infostr) = @_;
+
+    unless (defined $corpus && defined $src && defined $trg){
+	print STDERR "specify corpus src trg";
+	return 0;
+    }
+
+    &open_info_dbs unless ($DBOPEN);
+
+    ## set corpus for source and target language
+    foreach my $l ($src,$trg){
+	if (exists $Corpora{$l}){
+	    my @corpora = split(/\:/,$Corpora{$l});
+	    unless (grep($_ eq $corpus,@corpora)){
+		push(@corpora,$corpus);
+		@corpora = sort @corpora;
+		$Corpora{$l} = join(':',@corpora);
+	    }
+	}
+	else{
+	    $Corpora{$l} = $corpus;
+	}
+    }
+
+    ## set corpus for bitext
+    my $langpair = join('-',sort ($src,$trg));
+    if (exists $Bitexts{$langpair}){
+	my @corpora = split(/\:/,$Bitexts{$langpair});
+	unless (grep($_ eq $corpus,@corpora)){
+	    push(@corpora,$corpus);
+	    @corpora = sort @corpora;
+	    $Bitexts{$langpair} = join(':',@corpora);
+	}
+    }
+    else{
+	$Bitexts{$langpair} = $corpus;
+    }
+
+
+    ## set src-trg
+    if (exists $LangPairs{$src}){
+	my @lang = split(/\:/,$LangPairs{$src});
+	unless (grep($_ eq $trg,@lang)){
+	    push(@lang,$trg);
+	    @lang = sort @lang;
+	    $LangPairs{$src} = join(':',@lang);
+	}
+    }
+    else{
+	$LangPairs{$src} = $trg;
+    }
+
+    ## set trg-src
+    if (exists $LangPairs{$trg}){
+	my @lang = split(/\:/,$LangPairs{$trg});
+	unless (grep($_ eq $src,@lang)){
+	    push(@lang,$src);
+	    @lang = sort @lang;
+	    $LangPairs{$trg} = join(':',@lang);
+	}
+    }
+    else{
+	$LangPairs{$trg} = $src;
+    }
+
+    unless ($infostr){
+	$infostr = read_info_files($corpus,$src,$trg);
+    }
+
+    my $key = $corpus.'/'.$langpair;
+    if ($infostr){
+	if ($VERBOSE){
+	    if (exists $Info{$key}){
+		my $info = $Info{$key};
+		print STDERR "overwrite corpus info!\n";
+		print STDERR "old = ",$Info{$key},"\n";
+		print STDERR "new = ",$infostr,"\n";
+	    }
+	}
+	$Info{$key} = $infostr;
+    }
+}
+
+
+sub read_info_files{
+    my ($corpus,$src,$trg) = @_;
+
+    my $CorpusXML = $OPUS_HOME.'/corpus/'.$corpus.'/xml';
+    my $langpair  = join('-',sort ($src,$trg));
+
+    my $key = $corpus.'/'.$langpair;
+    my $moses = 'moses='.$key.'.txt.zip';
+    my $tmx = 'tmx='.$key.'.tmx.gz';
+    my $xces = 'xces='.$key.'.xml.gz:';
+    $xces .= $corpus.'/'.$src.'.tar.gz:';
+    $xces .= $corpus.'/'.$trg.'.tar.gz';
+
+    my @infos = ();
+
+    if (-e "$CorpusXML/$langpair.txt.info"){
+	open F, "<$CorpusXML/$langpair.txt.info";
+	my @val = <F>;
+	chomp(@val);
+	$moses .= ':'.join(':',@val);
+	push(@infos,$moses);
+    }
+
+    if (-e "$CorpusXML/$langpair.tmx.info"){
+	open F, "<$CorpusXML/$langpair.tmx.info";
+	my @val = <F>;
+	chomp(@val);
+	$tmx .= ':'.join(':',@val);
+	push(@infos,$tmx);
+    }
+
+    if (-e "$CorpusXML/$langpair.info"){
+	open F, "<$CorpusXML/$langpair.info";
+	my @val = <F>;
+	chomp(@val);
+	$xces .= ':'.join(':',@val);
+	push(@infos,$xces);
+    }
+
+    return join('+',@infos);
+}
+
+
+
+
+
 1;
 
 __END__

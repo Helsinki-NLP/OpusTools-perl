@@ -24,7 +24,7 @@ my $MINTOK = 0;
 my $MINSENT = 100;
 
 
-my $OPUSHOME = '/home/opus/OPUS';
+my $OPUSHOME = '/proj/nlpl/data/OPUS';
 my $OPUSHTML = $OPUSHOME.'/html';
 my $OPUSCORPORA = $OPUSHOME.'/corpus';
 

@@ -132,20 +132,24 @@ while ($ARGV[0]=~/^\-/){
 my $ALIGN=shift(@ARGV);
 $dir = dirname($ALIGN) unless ($dir);
 
-
 # be a bit more flexible with directories and filenames
+# test various standard directories if the given one does not exist
+
+my @ALTDIR = ( "/proj/nlpl/data/OPUS/corpus/$dir",      # taito
+	       "/projects/nlpl/data/OPUS/corpus/$dir",  # abel
+	       "/proj/OPUS/corpus/$dir",                # taito (old)
+	       "/home/opus/OPUS/corpus/$dir" );         # lingfil
+
 unless(-d $dir){
-    if (-d "/proj/nlpl/data/OPUS/corpus/$dir"){
-	$dir = "/proj/nlpl/data/OPUS/corpus/$dir/xml";
-    }
-    elsif (-d "/projects/nlpl/data/OPUS/corpus/$dir"){
-	$dir = "/projects/nlpl/data/OPUS/corpus/$dir/xml";
-    }
-    elsif (-d "/proj/OPUS/corpus/$dir"){
-	$dir = "/proj/OPUS/corpus/$dir/xml";
-    }
-    elsif (-d "/home/opus/OPUS/corpus/$dir"){
-	$dir = "/home/opus/OPUS/corpus/$dir/xml";
+    foreach (@ALTDIR){
+	if (-d "$_/xml"){
+	    $dir = "$_/xml";
+	    last;
+	}
+	else{
+	    $dir = "$_/raw";
+	    last;
+	}
     }
 }
 

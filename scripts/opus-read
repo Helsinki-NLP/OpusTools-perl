@@ -146,7 +146,7 @@ unless(-d $dir){
 	    $dir = "$_/xml";
 	    last;
 	}
-	else{
+	elsif (-d "$_/raw"){
 	    $dir = "$_/raw";
 	    last;
 	}
@@ -185,21 +185,13 @@ if ($html){&PrintHtmlHeader();}
 my $firstSrc=1;
 my $firstTrg=1;
 
+
 my $count=0;
 while (<F>){
     if (/fromDoc=\"([^\"]+)\"/){
 	if ($srcdoc ne $1){
-	    $srcdoc=$1;
+	    $srcdoc=find_document($dir,$1);
 	    if (not $firstSrc){close SRC;}
-	    if ((not -e $srcdoc) and (-e "$srcdoc.gz")){
-		$srcdoc="$srcdoc.gz";
-	    }
-	    if ((not -e $srcdoc) and (-e "$dir/$srcdoc")){
-		$srcdoc="$dir/$srcdoc";
-	    }
-	    if ((not -e $srcdoc) and (-e "$dir/$srcdoc.gz")){
-		$srcdoc="$dir/$srcdoc.gz";
-	    }
 	    if ($srcdoc=~/\.gz$/){
 		open SRC,"gzip -cd <$srcdoc |";
 	    }
@@ -211,21 +203,7 @@ while (<F>){
     }
     if (/toDoc=\"([^\"]+)\"/){
 	if ($trgdoc ne $1){
-	    $trgdoc=$1;
-	    if (defined $SkipDocs){
-		next if ($srcdoc=~/$SkipDocs/);
-		next if ($trgdoc=~/$SkipDocs/);
-	    }
-	    if (not $firstTrg){close TRG;}
-	    if ((not -e $trgdoc) and (-e "$trgdoc.gz")){
-		$trgdoc="$trgdoc.gz";
-	    }
-	    if ((not -e $trgdoc) and (-e "$dir/$trgdoc")){
-		$trgdoc="$dir/$trgdoc";
-	    }
-	    if ((not -e $trgdoc) and (-e "$dir/$trgdoc.gz")){
-		$trgdoc="$dir/$trgdoc.gz";
-	    }
+	    $trgdoc=find_document($dir,$1);
 	    if ($trgdoc=~/\.gz$/){
 		open TRG,"gzip -cd <$trgdoc |";
 	    }
@@ -362,6 +340,23 @@ sub Str2Html{
 #    $string=~s/\</\&lt\;/gs;
 #    $string=~s/\>/\&gt\;/gs;
     return $string;
+}
+
+
+## make some guesses to find a document if the path in doc does not exist
+sub find_document{
+    my ($dir,$doc) = @_;
+    return "$doc.gz" if ((not -e $doc) and (-e "$doc.gz"));
+    return "$dir/$doc" if ((not -e $doc) and (-e "$dir/$doc"));
+    return "$dir/$doc.gz" if ((not -e $doc) and (-e "$dir/$doc.gz"));
+    my $tmpdoc = $doc;
+    $tmpdoc =~s/(\A|\/)xml\//${1}raw\//;
+    return $tmpdoc if (-e $tmpdoc);
+    return $tmpdoc.'.gz' if (-e $tmpdoc.'.gz');
+    $dir =~s/(\A|\/)xml\//${1}raw\//;
+    return "$dir/$doc" if ((not -e $doc) and (-e "$dir/$doc"));
+    return "$dir/$doc.gz" if ((not -e $doc) and (-e "$dir/$doc.gz"));
+    return $doc;
 }
 
 sub PrintHtmlHeader{

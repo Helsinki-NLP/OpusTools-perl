@@ -346,14 +346,18 @@ sub Str2Html{
 ## make some guesses to find a document if the path in doc does not exist
 sub find_document{
     my ($dir,$doc) = @_;
+
+    ## gzipped and w/o dir
     return "$doc.gz" if ((not -e $doc) and (-e "$doc.gz"));
     return "$dir/$doc" if ((not -e $doc) and (-e "$dir/$doc"));
     return "$dir/$doc.gz" if ((not -e $doc) and (-e "$dir/$doc.gz"));
+
+    ## try /raw/ instead of /xml/
     my $tmpdoc = $doc;
     $tmpdoc =~s/(\A|\/)xml\//${1}raw\//;
     return $tmpdoc if (-e $tmpdoc);
     return $tmpdoc.'.gz' if (-e $tmpdoc.'.gz');
-    $dir =~s/(\A|\/)xml\//${1}raw\//;
+    $dir =~s/(\A|\/)xml(\/|\Z)/${1}raw$2/;
     return "$dir/$doc" if ((not -e $doc) and (-e "$dir/$doc"));
     return "$dir/$doc.gz" if ((not -e $doc) and (-e "$dir/$doc.gz"));
     return $doc;

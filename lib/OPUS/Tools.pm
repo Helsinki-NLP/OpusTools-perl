@@ -48,7 +48,8 @@ use strict;
 use DB_File;
 use Exporter 'import';
 
-our @EXPORT = qw(set_corpus_info $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
+our @EXPORT = qw(set_corpus_info delete_all_corpus_info
+                 $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
 
 our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
 our $OPUS_HTML     = $OPUS_HOME.'/html';
@@ -171,6 +172,64 @@ sub set_corpus_info{
 	$Info{$key} = $infostr;
     }
 }
+
+
+sub delete_all_corpus_info{
+    my ($corpus) = @_;
+
+    unless (defined $corpus){
+	print STDERR "specify corpus src trg";
+	return 0;
+    }
+
+    &open_info_dbs unless ($DBOPEN);
+
+    foreach my $c (keys %Corpora){
+	my @corpora = split(/\:/,$Corpora{$c});
+	if (grep($_ eq $corpus,@corpora)){
+	    @corpora = grep($_ ne $corpus,@corpora);
+	    @corpora = grep($_ ne '',@corpora);
+	    $Corpora{$c} = join(':',@corpora);
+	}
+    }
+
+    my %src2trg=();
+
+    foreach my $c (keys %Bitexts){
+	my @corpora = split(/\:/,$Bitexts{$c});
+	if (grep($_ eq $corpus,@corpora)){
+	    @corpora = grep($_ ne $corpus,@corpora);
+	    @corpora = grep($_ ne '',@corpora);
+	    if (@corpora){
+		$Bitexts{$c} = join(':',@corpora);
+		my ($s,$t) = split(/\-/,$c);
+		$src2trg{$s}{$t}++;
+		$src2trg{$t}{$s}++;
+	    }
+	    else{
+		delete $Bitexts{$c};
+	    }
+	}
+	else{
+	    my ($s,$t) = split(/\-/,$c);
+	    $src2trg{$s}{$t}++;
+	    $src2trg{$t}{$s}++;
+	}
+    }
+    
+    foreach my $l (keys %LangPairs){
+	$LangPairs{$l}=join(':',sort keys %{$src2trg{$l}});
+    }
+
+
+    foreach my $i (keys %Info){
+	my ($c,$l) = split(/\//,$i);
+	if ($c eq $corpus){
+	    delete $Info{$i};
+	}
+    }
+}
+
 
 
 sub read_info_files{

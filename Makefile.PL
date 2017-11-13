@@ -23,6 +23,7 @@ install_script 'scripts/admin/opusinfo-refresh';
 install_script 'scripts/admin/opusinfo-delete';
 install_script 'scripts/alignment/opus-pt2dic';
 install_script 'scripts/alignment/opus-pt2dice';
+install_script 'scripts/convert/opus-iso639';
 
 requires 'Cwd'             => 0;
 requires 'Test::More'      => 0;

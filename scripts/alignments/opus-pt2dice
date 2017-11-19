@@ -122,10 +122,10 @@ while (<>){
 
 	if (keys %transl){
 
-	    ## if target options may be included in other ones: jus print everything
+	    ## if target options may be included in other ones: just print everything
 	    if ($opt_i){
 		print join('', sort { $transl{$b} <=> $transl{$a} } keys %transl);
-		print "\n";
+		# print "\n";
 	    }
 
 	    ## otherwise: check if the option is included in any previous one
@@ -147,7 +147,7 @@ while (<>){
 			push (@trg,$t);
 		    }
 		}
-		print "\n";
+		# print "\n";
 	    }
 	    %transl = ();
 	}
@@ -177,5 +177,5 @@ while (<>){
 
 if (keys %transl){
     print join('', sort { $transl{$b} <=> $transl{$a} } keys %transl);
-    print "\n";
+    # print "\n";
 }

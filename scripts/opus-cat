@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+opus-cat - read a document from OPUS and print to STDOUT
+
+=head1 USAGE
+
+ # read sentence alignments and print aligned sentences
+ opus-cat file.xml
+ opus-cat file.xml.gz
+ opus-cat corpusname/lang file
+
+=head1 DESCRIPTION
+
+C<opus-cat> prints a file from OPUS to STDOUT. It is able to read from ZIP archives and finds files in the common OPUS file structure.
+
+=cut
+
+
+use strict;
+use FindBin qw($Bin);
+use lib $Bin.'/../lib';
+use OPUS::Tools;
+
+
+my ($dir,$doc);
+if ($#ARGV){
+    ($dir,$doc) = @ARGV;
+}
+else{
+    ($doc) = @ARGV;
+}
+
+my $fh;
+open_opus_document(\$fh,$dir,$doc);
+while (defined(my $line = $fh->getline())){
+    chomp $line;
+    print $line,"\n";
+}
+

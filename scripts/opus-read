@@ -102,7 +102,11 @@ L<https://bitbucket.org/tiedemann/uplug>
 
 use strict;
 use FindBin qw($Bin);
+use lib $Bin.'/../lib';
+
+use OPUS::Tools;
 use File::Basename qw(dirname basename);
+
 
 my $html=0;
 my $max=0;
@@ -185,32 +189,21 @@ if ($html){&PrintHtmlHeader();}
 my $firstSrc=1;
 my $firstTrg=1;
 
+my $SrcHandle;
+my $TrgHandle;
 
 my $count=0;
 while (<F>){
     if (/fromDoc=\"([^\"]+)\"/){
 	if ($srcdoc ne $1){
-	    $srcdoc=find_document($dir,$1);
-	    if (not $firstSrc){close SRC;}
-	    if ($srcdoc=~/\.gz$/){
-		open SRC,"gzip -cd <$srcdoc |";
-	    }
-	    else{
-		open SRC,"<$srcdoc";
-	    }
-	    $firstSrc=0;
+	    $srcdoc = $1;
+	    open_opus_document(\$SrcHandle,$dir,$srcdoc);
 	}
     }
     if (/toDoc=\"([^\"]+)\"/){
 	if ($trgdoc ne $1){
-	    $trgdoc=find_document($dir,$1);
-	    if ($trgdoc=~/\.gz$/){
-		open TRG,"gzip -cd <$trgdoc |";
-	    }
-	    else{
-		open TRG,"<$trgdoc";
-	    }
-	    $firstTrg=0;
+	    $trgdoc = $1;
+	    open_opus_document(\$TrgHandle,$dir,$trgdoc);
 	    unless ($FilterMode){
 		if ($html){print "<p>\n";}
 		print "\n# ".$srcdoc;
@@ -253,7 +246,8 @@ while (<F>){
 	my $oldDel=$/;
 	$/='</s>';
 SRCSENT: foreach (@srcsent){
-	    while (my $sent=<SRC>){
+#	    while (my $sent=<$SrcHandle>){
+	    while (defined(my $sent=$SrcHandle->getline())){
 		$srceof=0;
 		if ($sent=~/s [^\>]*id="$_"/s){
 		    if ($SrcID && $sent=~/lang=\".*?\"/){
@@ -279,7 +273,7 @@ SRCSENT: foreach (@srcsent){
 	}
 
 TRGSENT: foreach (@trgsent){
-	    while (my $sent=<TRG>){
+	    while (defined(my $sent=$TrgHandle->getline())){
 		$trgeof=0;
 		if ($sent=~/s [^\>]*id="$_"/s){
 		    if ($TrgID && $sent=~/lang=\".*?\"/){
@@ -304,14 +298,10 @@ TRGSENT: foreach (@trgsent){
 	    }
 	}
         if ($trgeof){
-            close TRG;
-            if ($trgdoc=~/\.gz$/){open TRG,"gzip -cd <$trgdoc |";}
-            else{open TRG,"<$trgdoc";}
+	    open_opus_document(\$TrgHandle,$dir,$trgdoc);
         }
         if ($srceof){
-            close SRC;
-            if ($srcdoc=~/\.gz$/){open SRC,"gzip -cd <$srcdoc |";}
-            else{open SRC,"<$srcdoc";}
+	    open_opus_document(\$SrcHandle,$dir,$srcdoc);
         }
 	$/=$oldDel;
 	if ($SrcStr && $TrgStr){
@@ -328,8 +318,8 @@ TRGSENT: foreach (@trgsent){
 }
 
 
-if (not $firstSrc){close SRC;}
-if (not $firstTrg){close TRG;}
+if (not $firstSrc){close $SrcHandle;}
+if (not $firstTrg){close $TrgHandle;}
 close F;
 
 if ($html){&PrintHtmlTail();}
@@ -342,26 +332,6 @@ sub Str2Html{
     return $string;
 }
 
-
-## make some guesses to find a document if the path in doc does not exist
-sub find_document{
-    my ($dir,$doc) = @_;
-
-    ## gzipped and w/o dir
-    return "$doc.gz" if ((not -e $doc) and (-e "$doc.gz"));
-    return "$dir/$doc" if ((not -e $doc) and (-e "$dir/$doc"));
-    return "$dir/$doc.gz" if ((not -e $doc) and (-e "$dir/$doc.gz"));
-
-    ## try /raw/ instead of /xml/
-    my $tmpdoc = $doc;
-    $tmpdoc =~s/(\A|\/)xml\//${1}raw\//;
-    return $tmpdoc if (-e $tmpdoc);
-    return $tmpdoc.'.gz' if (-e $tmpdoc.'.gz');
-    $dir =~s/(\A|\/)xml(\/|\Z)/${1}raw$2/;
-    return "$dir/$doc" if ((not -e $doc) and (-e "$dir/$doc"));
-    return "$dir/$doc.gz" if ((not -e $doc) and (-e "$dir/$doc.gz"));
-    return $doc;
-}
 
 sub PrintHtmlHeader{
     print <<HEADER;

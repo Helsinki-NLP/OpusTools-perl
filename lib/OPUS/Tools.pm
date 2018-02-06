@@ -48,10 +48,32 @@ use strict;
 use DB_File;
 use Exporter 'import';
 
+use Archive::Zip qw/ :ERROR_CODES :CONSTANTS /;
+use Archive::Zip::MemberRead;
+
+
 our @EXPORT = qw(set_corpus_info delete_all_corpus_info
+                 find_opus_document open_opus_document
+                 find_opus_documents
                  $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
 
-our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
+
+# set OPUS home dir
+
+my @ALT_OPUS_HOME = ( "/proj/nlpl/data/OPUS",      # taito
+		      "/projects/nlpl/data/OPUS",  # abel
+		      "/proj/OPUS",                # taito (old)
+		      "/home/opus/OPUS" );         # lingfil
+
+our $OPUS_HOME;
+foreach (@ALT_OPUS_HOME){
+    if (-d $_){
+	$OPUS_HOME = $_;
+	last;
+    }
+}
+
+# our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
 our $OPUS_HTML     = $OPUS_HOME.'/html';
 our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
 our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
@@ -59,6 +81,8 @@ our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
 our $INFODB_HOME   = $OPUS_PUBLIC;
 
 our $VERBOSE = 0;
+
+
 
 ## variables for info databases
 
@@ -69,6 +93,9 @@ my %Bitexts;
 my %Info;
 
 my $DBOPEN = 0;
+
+## hash of zip files (key = zipfile)
+my %ZipFiles;
 
 
 sub open_info_dbs{
@@ -275,6 +302,141 @@ sub read_info_files{
 }
 
 
+
+
+
+## make some guesses to find a document if the path in doc does not exist
+sub find_opus_document{
+    my ($dir,$doc) = @_;
+
+    return "$dir/$doc" if (-e "$dir/$doc");
+    return $doc if (-e $doc);
+
+    ## gzipped and w/o dir
+    return "$doc.gz" if (-e "$doc.gz");
+    return "$dir/$doc.gz" if (-e "$dir/$doc.gz");
+
+    ## various alternatives in OPUS_CORPUS homedir
+    return "$OPUS_CORPUS/$dir/$doc" if (-e "$OPUS_CORPUS/$dir/$doc");
+    return "$OPUS_CORPUS/$dir/$doc.gz" if (-e "$OPUS_CORPUS/$dir/$doc.gz");
+    return "$OPUS_CORPUS/$doc" if (-e "$OPUS_CORPUS/$doc");
+    return "$OPUS_CORPUS/$doc.gz" if (-e "$OPUS_CORPUS/$doc.gz");
+    return "$OPUS_CORPUS/$dir/xml/$doc" if (-e "$OPUS_CORPUS/$dir/xml/$doc");
+    return "$OPUS_CORPUS/$dir/xml/$doc.gz" if (-e "$OPUS_CORPUS/$dir/xml/$doc.gz");
+    return "$OPUS_CORPUS/$dir/raw/$doc" if (-e "$OPUS_CORPUS/$dir/raw/$doc");
+    return "$OPUS_CORPUS/$dir/raw/$doc.gz" if (-e "$OPUS_CORPUS/$dir/raw/$doc.gz");
+
+    ## try /raw/ instead of /xml/
+    my $tmpdoc = $doc;
+    $tmpdoc =~s/(\A|\/)xml\//${1}raw\//;
+    return find_opus_document($dir,$tmpdoc) if ($doc ne $tmpdoc);
+
+    my $tmpdir = $dir;
+    $tmpdir =~s/(\A|\/)xml(\/|\Z)/${1}raw$2/;
+    return find_opus_document($tmpdir,$doc) if ($dir ne $tmpdir);
+
+    if (($doc ne $tmpdoc) && ($dir ne $tmpdir)){
+	return find_opus_document($tmpdir,$tmpdoc);
+    }
+    return undef;
+}
+
+
+
+## open zip files and store a handle in ZipFiles
+sub open_zip_file{
+    my $zipfile = shift;
+    if (exists $ZipFiles{$zipfile}){
+	return $ZipFiles{$zipfile};
+    }
+    if (-e $zipfile){
+	$ZipFiles{$zipfile} = Archive::Zip->new($zipfile);
+	return $ZipFiles{$zipfile} if ($ZipFiles{$zipfile});
+	delete $ZipFiles{$zipfile};
+    }
+    return undef;
+}
+
+
+## make some guesses to find a document if the path in doc does not exist
+sub open_opus_document{
+    my ($fh,$dir,$doc) = @_;
+
+    my ($lang) = split(/\//,$doc);
+    my $zip = $dir.'/'.$lang.'.zip';
+
+    ## try to open a zip file
+    my $zip = open_zip_file($dir.'/'.$lang.'.zip');
+    ## also try the raw dir instead of xml-dir
+    unless ($zip){
+	my $rawdir = $dir;
+	$rawdir=~s/(\A|\/)xml(\/|\Z)/${1}raw$2/;
+    }
+    $zip = open_zip_file($dir.'/'.$lang.'.zip');
+
+    if ($zip){
+	$doc =~s/\.gz$//;           # remove .gz extension
+	$$fh = Archive::Zip::MemberRead->new($zip,$doc);
+	return 1 if ($fh);
+    }
+
+    ## no zip file? then look for physical file
+    if ($doc = find_opus_document($dir,$doc)){
+	close $$fh if (defined $$fh);
+	if ($doc=~/\.gz$/){
+	    return open $$fh,"gzip -cd <$doc |";
+	}
+	else{
+	    return open $$fh,"<$doc";
+	}
+    }
+    ## no file found - try zip archives
+    return 0;
+}
+
+
+
+=head1
+
+find_opus_documents($dir,$ext[,$mindepth[,$depth]])
+
+=cut
+
+sub find_opus_documents{
+    my $dir      = shift;
+    my $ext      = shift;
+    my $mindepth = shift;
+    my $depth    = shift;
+
+    my $ext = 'xml' unless (defined $ext);
+
+    ## return files in zip files if available
+    my $zip = open_zip_file($dir.'.zip');
+    if ($zip){
+	return $zip->memberNames(); 
+    }
+
+    my @docs=();
+    if (opendir(DIR, $dir)){
+	my @files = grep { /^[^\.]/ } readdir(DIR);
+	closedir DIR;
+	foreach my $f (@files){
+	    if (-f "$dir/$f" && $f=~/\.$ext(.gz)?$/){
+		if ((not defined($mindepth)) ||
+		    ($depth>=$mindepth)){
+		    push (@docs,"$dir/$f");
+		}
+	    }
+	    if (-d "$dir/$f"){
+		$depth++;
+		push (@docs,FindDocuments("$dir/$f",$ext,$mindepth,$depth));
+	    }
+	}
+    }
+    return @docs;
+}
+
+# my @files = $zip->memberNames(); 
 
 
 

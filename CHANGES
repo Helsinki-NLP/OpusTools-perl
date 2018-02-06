@@ -1,4 +1,11 @@
 
+* v0.04
+
+- opus-read can read from zip files
+- opus-cat added
+- moses2opus added (added perl module dependencies!)
+
+
 * v0.03		Mon Jul  3 22:59:29 EEST 2017
 
 - opus-udpipe added (requires UDPipe perl bindings)

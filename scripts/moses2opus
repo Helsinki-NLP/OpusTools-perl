@@ -1,0 +1,193 @@
+#!/usr/bin/perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+opus2moses - convert aligned plain text files into OPUS XML
+
+=head1 USAGE
+
+ # read sentence alignments and print aligned sentences
+ opus2moses [-b outbase] srcfile trgfile > alignfile.xml
+ opus2moses -s srclang -t trglang [-b outbase] srcfile trgfile > alignfile.xml
+ opus2moses -s srclang -t trglang [-b outbase] bitextfile > alignfile.xml
+
+=head1 DESCRIPTION
+
+C<moses2opus> converts a sentence-aligned corpus in plain text format (Moses format or fast_align format) into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence
+
+=cut
+
+
+use strict;
+use FindBin qw($Bin);
+use lib $Bin.'/../lib';
+
+use OPUS::Tools;
+use IO::File;
+use File::Basename qw/dirname basename/;
+use Locale::Language;
+use XML::Writer;
+use Lingua::Sentence;
+
+use vars qw($opt_s $opt_t $opt_b $opt_x);
+use Getopt::Std;
+getopts('s:t:b:x');
+
+
+my $srcfile = shift(@ARGV);
+my $trgfile = shift(@ARGV);
+
+my $moses = 1 if ($trgfile);
+
+my $srclang  = $opt_s || 'xx';
+my $trglang  = $opt_t || 'yy';
+my $filebase = $opt_b;
+
+unless ($opt_b){
+    $filebase = $srcfile;
+    $filebase=~s/\..{2,4}$//;
+}
+
+
+
+## open input files
+if ($srcfile=~/\.gz/){
+    open S,"gzip -cd <$srcfile.gz |" || die "cannot read from $srcfile.gz!\n";
+}
+else{
+    open S,"<$srcfile" || die "cannot read from $srcfile!\n";
+}
+if ($moses){
+    if ($trgfile=~/\.gz/){
+	open T,"gzip -cd <$trgfile.gz |" || 
+	    die "cannot read from $trgfile.gz!\n";
+    }
+    else{
+	open T,"<$trgfile" || die "cannot read from $trgfile!\n";
+    }
+}
+binmode(S,":encoding(utf-8)");
+binmode(T,":encoding(utf-8)");
+
+
+my $srcxml = $srclang.'/'.$filebase.'.xml';
+my $trgxml = $trglang.'/'.$filebase.'.xml';
+
+## create corpus directories
+system("mkdir -p ".dirname($srcxml));
+system("mkdir -p ".dirname($trgxml));
+
+## open corpus files
+my ($SrcOut,$TrgOut);
+if ($opt_x){
+    $SrcOut = IO::File->new("| gzip -c > $srcxml.gz");
+    $TrgOut = IO::File->new("| gzip -c > $trgxml.gz");
+}
+else{
+    $SrcOut = IO::File->new(">$srcxml");
+    $TrgOut = IO::File->new(">$trgxml");
+}
+binmode($SrcOut,":encoding(utf-8)");
+binmode($TrgOut,":encoding(utf-8)");
+
+
+## print align file header
+print '<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
+<cesAlign version="1.0">
+';
+print "<linkGrp targType=\"s\" fromDoc=\"$srcxml.gz\" toDoc=\"$trgxml.gz\" >\n";
+
+
+## open XML writers for corpus documents
+my $SrcWriter = XML::Writer->new( OUTPUT => $SrcOut,
+				  DATA_MODE => 1,
+				  DATA_INDENT => 1 );
+$SrcWriter->xmlDecl("UTF-8");
+$SrcWriter->startTag("text");
+
+
+my $TrgWriter = XML::Writer->new( OUTPUT => $TrgOut,
+				  DATA_MODE => 1,
+				  DATA_INDENT => 1 );
+$TrgWriter->xmlDecl("UTF-8");
+$TrgWriter->startTag("text");
+
+
+## create sentence splitters
+my $SrcSplitter = Lingua::Sentence->new($srclang);
+my $TrgSplitter = Lingua::Sentence->new($trglang);
+
+
+
+## read the corpus and convert
+my $sid = 0;
+while (<S>){
+    chomp;
+
+    $sid++;
+    my $src = $_;
+    my $trg;
+
+    if ($moses){
+	$trg = <T>;
+	chomp $trg;
+    }
+    else{
+	($src,$trg) = split(/ \|\|\| /,$src);
+    }
+
+    my @SrcSents = $SrcSplitter->split_array($src);
+    my @TrgSents = $TrgSplitter->split_array($trg);
+
+
+    my @SrcIds = write_sentences($SrcWriter,$sid,\@SrcSents);
+    my @TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents);
+
+    print '<link xtargets="';
+    print join(' ',@SrcIds);
+    print ';';
+    print join(' ',@TrgIds);
+    print '" id="SL'.$sid.'"/>',"\n";
+    
+}
+
+$SrcWriter->endTag('text');
+$TrgWriter->endTag('text');
+$SrcWriter->end();
+$TrgWriter->end();
+
+print "  </linkGrp>\n</cesAlign>\n";
+
+
+
+
+## write sentences and return sentence IDs
+sub write_sentences{
+    my ($writer,$id,$sents) = @_;
+
+    my @ids = ();
+    if ( $#{$sents} ){
+	$writer->startTag('p','id' => "p$id");
+	my $sid = 0;
+	foreach my $s (@{$sents}){
+	    $sid++;
+	    $writer->startTag('s','id'=>$id.'.'.$sid);
+	    $writer->characters($s);
+	    $writer->endTag('s');
+	    push(@ids,$id.'.'.$sid);
+	}
+	$writer->endTag('p');
+    }
+    else{
+	$writer->startTag('s','id'=>$id);
+	$writer->characters($$sents[0]);
+	$writer->endTag('s');
+	push(@ids,$id);
+    }
+    return @ids;
+}
+
+

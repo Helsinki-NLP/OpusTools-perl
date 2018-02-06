@@ -1,3 +1,13 @@
 
-- documentation in scripts
-- optimization and error checking
+
+- reading from ZIP files in all scripts
+  done for opus-read, opus-cat
+
+- should we add open_document function in general lib file
+  done
+
+- new tools: 
+  moses2opus (including sentence splitter?)	done
+  opus-cat (read files from zip-archives)	done
+
+- more unit tests!

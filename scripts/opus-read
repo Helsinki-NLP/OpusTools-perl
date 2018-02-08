@@ -49,6 +49,8 @@ opus-read - read sentence alignment in XCES align format
  -h ................. print simple HTML
  -l ................. print links (filter mode)
  -m <max> ........... print max <max> alignments
+ -n <regex> ......... get only documents that match the regex
+ -N <regex> ......... skip all documents that match the regex
  -s <LangID> ........ require source sentences to match <LangID>
  -t <LangID> ........ require target sentences to match <LangID>
  -S <max> ........... maximum number of source sentence in alignments
@@ -117,6 +119,7 @@ my $MaxTrg=undef;
 my $LinkThr=undef;
 my $FilterMode=0;    # filter-mode: print alignment XML
 my $SkipDocs=undef;  # RE pattern for doc's to be skipped when reading
+my $GrepDocs=undef;  # RE pattern for doc's to be extracted
 
 my $dir=undef;
 while ($ARGV[0]=~/^\-/){
@@ -129,6 +132,7 @@ while ($ARGV[0]=~/^\-/){
     elsif ($o=~/^\-S/){$MaxSrc=shift @ARGV;}
     elsif ($o=~/^\-T/){$MaxTrg=shift @ARGV;}
     elsif ($o=~/^\-c/){$LinkThr=shift @ARGV;}
+    elsif ($o=~/^\-n/){$GrepDocs=shift @ARGV;}
     elsif ($o=~/^\-N/){$SkipDocs=shift @ARGV;}
     elsif ($o=~/^\-l/){$FilterMode=1;}
 }
@@ -218,9 +222,16 @@ while (<F>){
 	next if ($srcdoc=~/$SkipDocs/);
 	next if ($trgdoc=~/$SkipDocs/);
     }
+    if (defined $GrepDocs){
+	next if ($srcdoc!~/$GrepDocs/);
+	next if ($trgdoc!~/$GrepDocs/);
+    }
     if (/xtargets=\"([^\"]*)\s*\;\s*([^\"]*)\"/){
 	if (defined $LinkThr){
 	    if (/certainty=\"(.*?)\"/){
+		next if ($1<$LinkThr);
+	    }
+	    elsif (/overlap=\"(.*?)\"/){
 		next if ($1<$LinkThr);
 	    }
 	}

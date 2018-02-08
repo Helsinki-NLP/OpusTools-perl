@@ -152,8 +152,8 @@ while (<S>){
     print join(' ',@TrgIds);
     print '" id="SL'.$sid.'"/>',"\n";
 
-    print STDERR '.' if (! ($sid % 200));
-    print STDERR " $sid\n" if (! ($sid % 10000));
+    print STDERR '.' if (! ($sid % 500));
+    print STDERR " $sid\n" if (! ($sid % 20000));
 }
 
 $SrcWriter->endTag('text');

@@ -120,6 +120,7 @@ my $LinkThr=undef;
 my $FilterMode=0;    # filter-mode: print alignment XML
 my $SkipDocs=undef;  # RE pattern for doc's to be skipped when reading
 my $GrepDocs=undef;  # RE pattern for doc's to be extracted
+my $VERBOSE=0;
 
 my $dir=undef;
 while ($ARGV[0]=~/^\-/){
@@ -135,6 +136,7 @@ while ($ARGV[0]=~/^\-/){
     elsif ($o=~/^\-n/){$GrepDocs=shift @ARGV;}
     elsif ($o=~/^\-N/){$SkipDocs=shift @ARGV;}
     elsif ($o=~/^\-l/){$FilterMode=1;}
+    elsif ($o=~/^\-v/){$VERBOSE=1;}
 }
 
 my $ALIGN=shift(@ARGV);
@@ -201,14 +203,17 @@ while (<F>){
     if (/fromDoc=\"([^\"]+)\"/){
 	if ($srcdoc ne $1){
 	    $srcdoc = $1;
-	    open_opus_document(\$SrcHandle,$dir,$srcdoc);
+	    unless ($FilterMode){
+		open_opus_document(\$SrcHandle,$dir,$srcdoc);
+	    }
+	    print STDERR "read $srcdoc - ";
 	}
     }
     if (/toDoc=\"([^\"]+)\"/){
 	if ($trgdoc ne $1){
 	    $trgdoc = $1;
-	    open_opus_document(\$TrgHandle,$dir,$trgdoc);
 	    unless ($FilterMode){
+		open_opus_document(\$TrgHandle,$dir,$trgdoc);
 		if ($html){print "<p>\n";}
 		print "\n# ".$srcdoc;
 		if ($html){print '<br>';}
@@ -216,8 +221,12 @@ while (<F>){
 		if ($html){print "<p><hr>\n";}
 		else{print "================================\n";}
 	    }
+	    print STDERR "$trgdoc\n";
 	}
     }
+    next unless ($srcdoc);
+    next unless ($trgdoc);
+
     if (defined $SkipDocs){
 	next if ($srcdoc=~/$SkipDocs/);
 	next if ($trgdoc=~/$SkipDocs/);
@@ -227,6 +236,8 @@ while (<F>){
 	next if ($trgdoc!~/$GrepDocs/);
     }
     if (/xtargets=\"([^\"]*)\s*\;\s*([^\"]*)\"/){
+	my $src=$1;
+	my $trg=$2;
 	if (defined $LinkThr){
 	    if (/certainty=\"(.*?)\"/){
 		next if ($1<$LinkThr);
@@ -239,8 +250,6 @@ while (<F>){
 	my $trgeof=1;
 	$count++;
 	if ($max and ($count>$max)){last;}
-	my $src=$1;
-	my $trg=$2;
 	my @srcsent=split(/\s/,$src);
 	my @trgsent=split(/\s/,$trg);
 
@@ -251,86 +260,86 @@ while (<F>){
 	    next if (scalar @trgsent > $MaxTrg);
 	}
 
-	my $SrcStr='';
-	my $TrgStr='';
+	unless ($FilterMode){
+	    my $SrcStr='';
+	    my $TrgStr='';
 
-	my $oldDel=$/;
-	$/='</s>';
-SRCSENT: foreach (@srcsent){
-#	    while (my $sent=<$SrcHandle>){
-	    while (defined(my $sent=$SrcHandle->getline())){
-		$srceof=0;
-		if ($sent=~/s [^\>]*id="$_"/s){
-		    if ($SrcID && $sent=~/lang=\".*?\"/){
-			next SRCSENT unless ($sent=~/lang=\"$SrcID\"/);
+	    my $oldDel=$/;
+	    $/='</s>';
+SRCSENT:    foreach (@srcsent){
+                while (defined(my $sent=$SrcHandle->getline())){
+		    $srceof=0;
+		    if ($sent=~/s [^\>]*id="$_"/s){
+			if ($SrcID && $sent=~/lang=\".*?\"/){
+			    next SRCSENT unless ($sent=~/lang=\"$SrcID\"/);
+			}
+			$sent=~s/^.*<s [^\>]*id/(src)/s;
+			$sent=~s/\n/ /gs;
+			$sent=~s/\<[^\>]*>//gs;
+			$sent=~s/  +/ /gs;
+			if ($html){$sent=&Str2Html($sent);}
+			else{
+			    $sent=~s/\&gt\;/\>/gs;
+			    $sent=~s/\&lt\;/\</gs;
+			    $sent=~s/\&amp\;/\&/gs;
+			}
+			$SrcStr.=$sent;
+			if ($html){$SrcStr.="<br>";}
+			$SrcStr.="\n";
+			last;
 		    }
-		    $sent=~s/^.*<s [^\>]*id/(src)/s;
-		    $sent=~s/\n/ /gs;
-		    $sent=~s/\<[^\>]*>//gs;
-		    $sent=~s/  +/ /gs;
-		    if ($html){$sent=&Str2Html($sent);}
-		    else{
-			$sent=~s/\&gt\;/\>/gs;
-			$sent=~s/\&lt\;/\</gs;
-			$sent=~s/\&amp\;/\&/gs;
-		    }
-		    $SrcStr.=$sent;
-		    if ($html){$SrcStr.="<br>";}
-		    $SrcStr.="\n";
-		    last;
+		    $srceof=1;
 		}
-		$srceof=1;
-	    }
-	}
+            }
 
-TRGSENT: foreach (@trgsent){
-	    while (defined(my $sent=$TrgHandle->getline())){
-		$trgeof=0;
-		if ($sent=~/s [^\>]*id="$_"/s){
-		    if ($TrgID && $sent=~/lang=\".*?\"/){
-			next TRGSENT unless ($sent=~/lang=\"$TrgID\"/);
+TRGSENT:    foreach (@trgsent){
+	        while (defined(my $sent=$TrgHandle->getline())){
+		    $trgeof=0;
+		    if ($sent=~/s [^\>]*id="$_"/s){
+			if ($TrgID && $sent=~/lang=\".*?\"/){
+			    next TRGSENT unless ($sent=~/lang=\"$TrgID\"/);
+			}
+			$sent=~s/^.*<s [^\>]*id/(trg)/s;
+			$sent=~s/\n/ /gs;
+			$sent=~s/\<[^\>]*>//gs;
+			$sent=~s/  +/ /gs;
+			if ($html){$sent=&Str2Html($sent);}
+			else{
+			    $sent=~s/\&gt\;/\>/gs;
+			    $sent=~s/\&lt\;/\</gs;
+			    $sent=~s/\&amp\;/\&/gs;
+			}
+			$TrgStr.=$sent;
+			if ($html){$TrgStr.="<br>";}
+			$TrgStr.="\n";
+			last;
 		    }
-		    $sent=~s/^.*<s [^\>]*id/(trg)/s;
-		    $sent=~s/\n/ /gs;
-		    $sent=~s/\<[^\>]*>//gs;
-		    $sent=~s/  +/ /gs;
-		    if ($html){$sent=&Str2Html($sent);}
-		    else{
-			$sent=~s/\&gt\;/\>/gs;
-			$sent=~s/\&lt\;/\</gs;
-			$sent=~s/\&amp\;/\&/gs;
-		    }
-		    $TrgStr.=$sent;
-		    if ($html){$TrgStr.="<br>";}
-		    $TrgStr.="\n";
-		    last;
+		    $trgeof=1;
 		}
-		$trgeof=1;
+            }
+	    if ($trgeof){
+		open_opus_document(\$TrgHandle,$dir,$trgdoc);
 	    }
-	}
-        if ($trgeof){
-	    open_opus_document(\$TrgHandle,$dir,$trgdoc);
-        }
-        if ($srceof){
-	    open_opus_document(\$SrcHandle,$dir,$srcdoc);
-        }
-	$/=$oldDel;
-	if ($SrcStr && $TrgStr){
-	    unless ($FilterMode){
+	    if ($srceof){
+		open_opus_document(\$SrcHandle,$dir,$srcdoc);
+	    }
+	    $/=$oldDel;
+	    if ($SrcStr && $TrgStr){
 		print $SrcStr;
 		print $TrgStr;
 		if ($html){print "<hr>\n";}
 		else{print "================================\n";}
 	    }
+	    else{ next; }
 	}
-	else{ next; }
     }
     print $_ if ($FilterMode);
 }
 
-
-if (not $firstSrc){close $SrcHandle;}
-if (not $firstTrg){close $TrgHandle;}
+unless ($FilterMode){
+    if (not $firstSrc){close $SrcHandle;}
+    if (not $firstTrg){close $TrgHandle;}
+}
 close F;
 
 if ($html){&PrintHtmlTail();}

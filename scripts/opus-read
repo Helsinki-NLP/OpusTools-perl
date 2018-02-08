@@ -206,7 +206,7 @@ while (<F>){
 	    unless ($FilterMode){
 		open_opus_document(\$SrcHandle,$dir,$srcdoc);
 	    }
-	    print STDERR "read $srcdoc - ";
+	    print STDERR "read $srcdoc - " if ($VERBOSE);
 	}
     }
     if (/toDoc=\"([^\"]+)\"/){
@@ -221,7 +221,7 @@ while (<F>){
 		if ($html){print "<p><hr>\n";}
 		else{print "================================\n";}
 	    }
-	    print STDERR "$trgdoc\n";
+	    print STDERR "$trgdoc\n" if ($VERBOSE);
 	}
     }
     next unless ($srcdoc);

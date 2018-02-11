@@ -99,6 +99,7 @@ my $TrgSplitter = Lingua::Sentence->new($trglang);
 
 ## read the corpus and convert
 my $sid = 0;
+my $lid = 0;
 while (<S>){
     chomp;
 
@@ -121,14 +122,15 @@ while (<S>){
     my @SrcIds = write_sentences($SrcWriter,$sid,\@SrcSents);
     my @TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents);
 
+    $lid++;
     print '<link xtargets="';
     print join(' ',@SrcIds);
     print ';';
     print join(' ',@TrgIds);
-    print '" id="SL'.$sid.'"/>',"\n";
+    print '" id="SL'.$lid.'"/>',"\n";
 
-    print STDERR '.' if (! ($sid % 500));
-    print STDERR " $sid\n" if (! ($sid % 20000));
+    print STDERR '.' if (! ($lid % 500));
+    print STDERR " $lid\n" if (! ($lid % 20000));
 
     if ($maxsize && $sid>=$maxsize){
 	$sid = 0;
@@ -152,8 +154,8 @@ sub open_output{
     ## split into parts
     if ($maxsize){
 	my $ext = sprintf('%04d',$part);
-	$srcxml = $srclang.'/'.$filebase.$ext.'.xml';
-	$trgxml = $trglang.'/'.$filebase.$ext.'.xml';
+	$srcxml = $srclang.'/'.$filebase.'.'.$ext.'.xml';
+	$trgxml = $trglang.'/'.$filebase.'.'.$ext.'.xml';
     }
     else{
 	$srcxml = $srclang.'/'.$filebase.'.xml';

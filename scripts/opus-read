@@ -251,6 +251,7 @@ while (<F>){
 		if (/certainty=\"(.*?)\"/){
 		    next if ($1<$LinkThr);
 		}
+	    }
 	    if (defined $OverlapThr){
 		if (/overlap=\"(.*?)\"/){
 		    next if ($1<$OverlapThr);

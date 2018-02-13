@@ -32,7 +32,7 @@ requires 'Cwd'              => 0;
 requires 'HTML::Entities'   => 0;
 requires 'Lingua::Sentence' => 0;
 requires 'Test::More'       => 0;
-requires 'Ufal::UDPipe'     => 0;
+# requires 'Ufal::UDPipe'     => 0;
 requires 'XML::Parser'      => 0;
 requires 'XML::Writer'      => 0;
 

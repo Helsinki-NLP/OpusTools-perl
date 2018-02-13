@@ -58,6 +58,7 @@ use strict;
 use FindBin qw($Bin);
 use File::Copy;
 use File::Basename;
+use File::Temp qw/ tempfile tempdir /;
 use XML::Parser;
 use Encode;
 use HTML::Entities qw/encode_entities/;
@@ -98,8 +99,12 @@ my $CWBALIGNENCODE='cwb-align-encode';
 
 # some more global variables
 
-my $TMPDIR = $opt_m || '/tmp/BITEXTINDEXER'.$$;
-mkdir $TMPDIR,0755 unless (-d $TMPDIR);
+my $DATADIR = $opt_m || '/tmp/BITEXTINDEXER'.$$;
+mkdir $DATADIR,0755 unless (-d $DATADIR);
+
+## temporary data
+my $TMPDIR = tempdir( CLEANUP => 1 );
+
 
 my $SentTag='s';                 # default sentence tag
 my $WordTag='w';                 # default word tag
@@ -215,8 +220,8 @@ unless ($opt_M){
 foreach my $l (@LANG){
 
     my $llc = lc($l);
-    my $cwbtok = $TMPDIR.'/'.$llc;
-    my $cwbpos = $TMPDIR.'/'.$llc.'.pos';
+    my $cwbtok = $DATADIR.'/'.$llc;
+    my $cwbpos = $DATADIR.'/'.$llc.'.pos';
 
     if (-e $cwbpos){
 	print STDERR "$cwbpos found - re-use\n";
@@ -294,7 +299,7 @@ foreach my $s (@ALGLANG){
     ## read token position file for source language
     ## TODO: can we skip this if it is not necessary?
     print STDERR "read position file for '$slc'\n" if $VERBOSE;
-    my $srcpos = $TMPDIR.'/'.$slc.'.pos';
+    my $srcpos = $DATADIR.'/'.$slc.'.pos';
     my %SrcPos=();
     ReadPosFile($srcpos,\%SrcPos);
 
@@ -322,17 +327,17 @@ foreach my $s (@ALGLANG){
 	}
 #	next if (not -d $dir);
 
-	my $srctrg = "$TMPDIR/$slc$tlc.alg";
-	my $trgsrc = "$TMPDIR/$tlc$slc.alg";
+	my $srctrg = "$DATADIR/$slc$tlc.alg";
+	my $trgsrc = "$DATADIR/$tlc$slc.alg";
 
-	if (-e "$TMPDIR/$slc$tlc.alg" && -e "$TMPDIR/$tlc$slc.alg"){
+	if (-e "$DATADIR/$slc$tlc.alg" && -e "$DATADIR/$tlc$slc.alg"){
 	    print STDERR "alignment files found for '$s-$t'! - re-use them\n";
 	}
 	else{
 
 	    ## read token position file for target language
 	    print STDERR "read position file for '$tlc'\n" if $VERBOSE;
-	    my $trgpos = $TMPDIR.'/'.$tlc.'.pos';
+	    my $trgpos = $DATADIR.'/'.$tlc.'.pos';
 	    my %TrgPos=();
 	    ReadPosFile($trgpos,\%TrgPos);
 
@@ -351,8 +356,8 @@ foreach my $s (@ALGLANG){
 	    }
 	    @doc = sort @doc;
 
-	    # my $srctrg = "$TMPDIR/$slc$tlc.alg";
-	    # my $trgsrc = "$TMPDIR/$tlc$slc.alg";
+	    # my $srctrg = "$DATADIR/$slc$tlc.alg";
+	    # my $trgsrc = "$DATADIR/$tlc$slc.alg";
 
 	    open ALG1,">$srctrg";
 	    open ALG2,">$trgsrc";
@@ -381,13 +386,13 @@ foreach my $s (@ALGLANG){
 if ((not $opt_m) and (not $opt_k)){
     foreach my $s (@LANG){
 	my $slc=lc($s);
-	unlink($TMPDIR.'/'.$slc.'.pos');
+	unlink($DATADIR.'/'.$slc.'.pos');
 	foreach my $t (@LANG){
 	    my $tlc=lc($t);
-	    unlink($TMPDIR.'/'.$tlc.'.pos');
+	    unlink($DATADIR.'/'.$tlc.'.pos');
 	}
     }
-    rmdir($TMPDIR);
+    rmdir($DATADIR);
 }
 }
 

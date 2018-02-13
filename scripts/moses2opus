@@ -129,8 +129,8 @@ while (<S>){
     print join(' ',@TrgIds);
     print '" id="SL'.$lid.'"/>',"\n";
 
-    print STDERR '.' if (! ($lid % 500));
-    print STDERR " $lid\n" if (! ($lid % 20000));
+    print STDERR '.' if (! ($lid % 1000));
+    print STDERR " $lid\n" if (! ($lid % 50000));
 
     if ($maxsize && $sid>=$maxsize){
 	$sid = 0;

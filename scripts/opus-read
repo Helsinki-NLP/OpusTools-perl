@@ -251,11 +251,13 @@ while (<F>){
 		if (/certainty=\"(.*?)\"/){
 		    next if ($1<$LinkThr);
 		}
+		else{ next; }           ## TODO: is this good
 	    }
 	    if (defined $OverlapThr){
 		if (/overlap=\"(.*?)\"/){
 		    next if ($1<$OverlapThr);
 		}
+		else{ next; }           ## TODO: is this good
 	    }
 	    my $srceof=1;
 	    my $trgeof=1;

@@ -64,15 +64,14 @@ my $part = 1;
 
 ## open input files
 if ($srcfile=~/\.gz/){
-    open S,"gzip -cd <$srcfile.gz |" || die "cannot read from $srcfile.gz!\n";
+    open S,"gzip -cd <$srcfile |" || die "cannot read from $srcfile!\n";
 }
 else{
     open S,"<$srcfile" || die "cannot read from $srcfile!\n";
 }
 if ($moses){
     if ($trgfile=~/\.gz/){
-	open T,"gzip -cd <$trgfile.gz |" || 
-	    die "cannot read from $trgfile.gz!\n";
+	open T,"gzip -cd <$trgfile |" || die "cannot read from $trgfile!\n";
     }
     else{
 	open T,"<$trgfile" || die "cannot read from $trgfile!\n";

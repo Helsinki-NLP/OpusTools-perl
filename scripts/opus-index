@@ -223,16 +223,16 @@ foreach my $l (@LANG){
     my $cwbtok = $DATADIR.'/'.$llc;
     my $cwbpos = $DATADIR.'/'.$llc.'.pos';
 
-    if (-e $cwbpos){
-	print STDERR "$cwbpos found - re-use\n";
-	next;
-    }
+#     if (-e $cwbpos){
+# 	print STDERR "$cwbpos found - re-use\n";
+# 	next;
+#     }
 
     ## in case the vertical file exists and the attributes 
     ## for encoding are stored in a file as well:
     ## --> re-use and encode
     my $attr = undef;;
-    if (-e $cwbtok && -e "$cwbtok.attr"){
+    if (-e $cwbtok && -e $cwbpos && -e "$cwbtok.attr"){
 	print STDERR "$cwbtok found - re-use\n";
 	open A,"<$cwbtok.attr";
 	$attr = <A>;

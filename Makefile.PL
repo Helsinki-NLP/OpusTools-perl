@@ -20,6 +20,7 @@ install_script 'scripts/opus2moses';
 install_script 'scripts/moses2opus';
 install_script 'scripts/opus2multi';
 install_script 'scripts/admin/opus-make-website';
+install_script 'scripts/admin/opus-website';
 install_script 'scripts/admin/opusinfo-set';
 install_script 'scripts/admin/opusinfo-refresh';
 install_script 'scripts/admin/opusinfo-delete';
@@ -28,7 +29,9 @@ install_script 'scripts/alignments/opus-pt2dice';
 install_script 'scripts/convert/opus-iso639';
 
 requires 'Archive::Zip'     => 0;
+requires 'CGI'              => 0;
 requires 'Cwd'              => 0;
+requires 'DB_File'          => 0;
 requires 'HTML::Entities'   => 0;
 requires 'Lingua::Sentence' => 0;
 requires 'Test::More'       => 0;

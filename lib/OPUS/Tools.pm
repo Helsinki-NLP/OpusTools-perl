@@ -54,16 +54,18 @@ use Archive::Zip::MemberRead;
 
 our @EXPORT = qw(set_corpus_info delete_all_corpus_info
                  find_opus_document open_opus_document
-                 find_opus_documents
+                 find_opus_documents find_sentalign_file
                  $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
 
 
 # set OPUS home dir
 
-my @ALT_OPUS_HOME = ( "/proj/nlpl/data/OPUS",      # taito
-		      "/projects/nlpl/data/OPUS",  # abel
-		      "/proj/OPUS",                # taito (old)
-		      "/home/opus/OPUS" );         # lingfil
+my @ALT_OPUS_HOME = ( '/proj/nlpl/data/OPUS',      # taito
+		      '/projects/nlpl/data/OPUS',  # abel
+		      '/proj/OPUS',                # taito (old)
+		      '/home/opus/OPUS',           # lingfil
+		      $ENV{HOME}.'/OPUS',          # user home
+		      $ENV{HOME}.'/research//OPUS');
 
 our $OPUS_HOME;
 foreach (@ALT_OPUS_HOME){
@@ -78,6 +80,7 @@ our $OPUS_HTML     = $OPUS_HOME.'/html';
 our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
 our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
 our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
+our $OPUS_RELEASES = $OPUS_HOME.'/releases';
 our $INFODB_HOME   = $OPUS_PUBLIC;
 
 our $VERBOSE = 0;
@@ -258,8 +261,69 @@ sub delete_all_corpus_info{
 }
 
 
+sub get_corpus_version{
+    my ($corpus) = @_;
+    if (-e "$OPUS_HOME/corpus/Makefile.def"){
+	open F, "<$OPUS_HOME/corpus/Makefile.def";
+	while (<F>){
+	    if (/VERSION\s+=\s+(\S+)(\s|\Z)/){
+		return $1;
+	    }
+	}
+    }
+    return 'latest';
+}
+
 
 sub read_info_files{
+    my ($corpus,$src,$trg,$release) = @_;
+
+    my $CorpusXML   = $OPUS_HOME.'/corpus/'.$corpus.'/xml';
+    my $langpair    = join('-',sort ($src,$trg));
+    $release        = get_corpus_version($corpus) unless ($release);
+    my $ReleaseBase = $corpus.'/'.$release;
+
+    my $moses = 'moses='.$ReleaseBase.'/moses/'.$langpair.'.txt.zip';
+    my $tmx   = 'tmx='.$ReleaseBase.'/tmx/'.$langpair.'.tmx.gz';
+    my $xces  = 'xces='.$ReleaseBase.'/xml/'.$langpair.'.xml.gz:';
+    $xces    .= $ReleaseBase.'/xml/'.$src.'.zip:';
+    $xces    .= $ReleaseBase.'/xml/'.$trg.'.zip';
+
+    my @infos = ();
+
+    if (-e "$CorpusXML/$langpair.txt.info"){
+	open F, "<$CorpusXML/$langpair.txt.info";
+	my @val = <F>;
+	chomp(@val);
+	$moses .= ':'.join(':',@val);
+	push(@infos,$moses);
+    }
+
+    if (-e "$CorpusXML/$langpair.tmx.info"){
+	open F, "<$CorpusXML/$langpair.tmx.info";
+	my @val = <F>;
+	chomp(@val);
+	$tmx .= ':'.join(':',@val);
+	push(@infos,$tmx);
+    }
+
+    if (-e "$CorpusXML/$langpair.info"){
+	open F, "<$CorpusXML/$langpair.info";
+	my @val = <F>;
+	chomp(@val);
+	$xces .= ':'.join(':',@val);
+	push(@infos,$xces);
+    }
+
+    return join('+',@infos);
+}
+
+
+
+
+# old style of download files in tar
+
+sub read_old_info_files{
     my ($corpus,$src,$trg) = @_;
 
     my $CorpusXML = $OPUS_HOME.'/corpus/'.$corpus.'/xml';
@@ -301,6 +365,52 @@ sub read_info_files{
     return join('+',@infos);
 }
 
+
+
+
+
+
+## make some guesses to find a document if the path in doc does not exist
+sub find_sentalign_file{
+    my ($dir,$SrcID,$TrgID,$ALIGN,$release) = @_;
+
+    if ($dir && -d $dir){
+	return "$dir/$SrcID-$TrgID.xml.gz" if (-e "$dir/$SrcID-$TrgID.xml.gz");
+	return "$dir/$TrgID-$SrcID.xml.gz" if (-e "$dir/$TrgID-$SrcID.xml.gz");
+    }
+
+    return $ALIGN if (-e $ALIGN);
+    return "$ALIGN.gz" if (-e "$ALIGN.gz");
+    return "$dir/$ALIGN" if (-d $dir && -e "$dir/$ALIGN");
+    return "$dir/$ALIGN.gz" if (-d $dir && -e "$dir/$ALIGN.gz");
+
+    $dir = dirname($ALIGN) unless ($dir);
+    my @ALTDIR = ( $dir,
+		   "$OPUS_RELEASES/$dir/$release",
+		   "$OPUS_RELEASES/$dir",
+		   "$OPUS_CORPUS/$dir" );
+
+    foreach (@ALTDIR){
+	if (-d "$_/xml"){
+	    $dir = "$_/xml";
+	    last;
+	}
+	elsif (-d "$_/raw"){
+	    $dir = "$_/raw";
+	    last;
+	}
+    }
+
+    unless($ALIGN){
+	return "$dir/$SrcID-$TrgID.xml.gz" if (-e "$dir/$SrcID-$TrgID.xml.gz");
+	return "$dir/$TrgID-$SrcID.xml.gz" if (-e "$dir/$TrgID-$SrcID.xml.gz");
+    }
+
+    my $base = basename($ALIGN);
+    if (-f "$dir/$base"){ $ALIGN = "$dir/$base"; }
+    elsif (-f "$dir/$base.gz"){ return "$dir/$base.gz"; }
+    elsif (-f "$dir/$base.xml.gz"){ return "$dir/$base.xml.gz"; }
+}
 
 
 

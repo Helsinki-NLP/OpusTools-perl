@@ -9,5 +9,7 @@
 - new tools: 
   moses2opus (including sentence splitter?)	done
   opus-cat (read files from zip-archives)	done
+  opus2conllu (parsed OPUS data to conllu)
+  opus-website (websites for new releases)	almost done
 
 - more unit tests!

@@ -4,6 +4,7 @@
 - opus-read can read from zip files
 - opus-cat added
 - moses2opus added (added perl module dependencies!)
+- opus-website for the new release style
 
 
 * v0.03		Mon Jul  3 22:59:29 EEST 2017

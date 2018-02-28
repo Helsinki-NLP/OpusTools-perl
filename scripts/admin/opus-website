@@ -157,7 +157,7 @@ sub MakeSampleFiles{
 	}
     }
     foreach (keys %{$lang}){
-	$$samples{$_}="$HTMLHOME/$VERSION/$CORPUS/$_\_sample.html";
+	$$samples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_sample.html";
 	if (not -e $$samples{$_}){
 	    system "echo '<html><head></head><body><pre>' > $$samples{$_}";
 	    my $find="find $$lang{$_} -name '*ml.gz'";
@@ -167,7 +167,7 @@ sub MakeSampleFiles{
     }
     foreach (keys %{$bitexts}){
 	if (-e $$bitexts{$_}){
-	    $$samples{$_}="$HTMLHOME/$VERSION/$CORPUS/$_\_sample.html";
+	    $$samples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_sample.html";
 	}
     }
 }
@@ -571,7 +571,7 @@ sub DownloadTable{
 	    $HTML.="<th></th>\n";
 	    $SRCCOUNT=0;
 	}
-	$HTML.="<th><a rel=\"nofollow\" href=\"$CORPUS/$l\_sample.html\">$l</a></th>\n";
+	$HTML.="<th><a rel=\"nofollow\" href=\"$CORPUS/$VERSION/$l\_sample.html\">$l</a></th>\n";
     }
     $HTML.="<th></th></tr>\n";
 

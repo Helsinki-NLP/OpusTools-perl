@@ -14,6 +14,7 @@
 # -h <dir> ........ public_html dir
 # -d <dir> ........ release dir (for all downloads)
 # -o <dir> ........ OPUS home dir (otherwise extracted from PWD)
+# -r <release> .... corpus release (default = v1)
 # -s <size> ....... size of sample files (in lines)
 # 
 
@@ -28,15 +29,15 @@ use File::Basename;
 use lib "$Bin/../../lib";
 use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
-our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h);
-getopts('s:m:o:d:h:');
+our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r);
+getopts('s:m:o:d:h:r:');
 
 my $PWD     = $ENV{PWD};
 
 my $xmldir  = 'xml';
 my @paths   = split(/\//,$PWD);
 my $CORPUS  = $paths[-1];
-my $VERSION = 'v1';
+my $VERSION = $opt_r || 'v1';
 
 my $OPUSHOME    = $PWD;
 $OPUSHOME       =~s/(OPUS\/.*)$/$1/;
@@ -145,7 +146,7 @@ sub MakeSampleFiles{
     my $samples=shift;
     my $parsesamples=shift;
     foreach (keys %{$lang}){
-	$$parsesamples{$_}="$HTMLHOME/$CORPUS/$_\_parse_sample.html";
+	$$parsesamples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_parse_sample.html";
 	if (not -e $$parsesamples{$_}){
 	    if(-d "parsed/".$$lang{$_}){
 		system "echo '<html><head></head><body><pre>' > $$parsesamples{$_}";
@@ -156,7 +157,7 @@ sub MakeSampleFiles{
 	}
     }
     foreach (keys %{$lang}){
-	$$samples{$_}="$HTMLHOME/$CORPUS/$_\_sample.html";
+	$$samples{$_}="$HTMLHOME/$VERSION/$CORPUS/$_\_sample.html";
 	if (not -e $$samples{$_}){
 	    system "echo '<html><head></head><body><pre>' > $$samples{$_}";
 	    my $find="find $$lang{$_} -name '*ml.gz'";
@@ -166,7 +167,7 @@ sub MakeSampleFiles{
     }
     foreach (keys %{$bitexts}){
 	if (-e $$bitexts{$_}){
-	    $$samples{$_}="$HTMLHOME/$CORPUS/$_\_sample.html";
+	    $$samples{$_}="$HTMLHOME/$VERSION/$CORPUS/$_\_sample.html";
 	}
     }
 }

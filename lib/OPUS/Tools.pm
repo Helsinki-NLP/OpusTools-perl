@@ -50,11 +50,13 @@ use Exporter 'import';
 
 use Archive::Zip qw/ :ERROR_CODES :CONSTANTS /;
 use Archive::Zip::MemberRead;
+use File::Basename qw(dirname basename);
 
 
 our @EXPORT = qw(set_corpus_info delete_all_corpus_info
-                 find_opus_document open_opus_document
-                 find_opus_documents find_sentalign_file
+                 find_opus_document find_opus_documents 
+                 find_bitext find_sentalign_file
+                 open_bitext open_opus_document
                  $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
 
 
@@ -97,8 +99,10 @@ my %Info;
 
 my $DBOPEN = 0;
 
-## hash of zip files (key = zipfile)
+## ZipFiles = hash of zip file handles (key = zipfile)
+## CorpusBase = corpus base dir of zip archives
 my %ZipFiles;
+my %CorpusBase;
 
 
 sub open_info_dbs{
@@ -366,6 +370,80 @@ sub read_old_info_files{
 }
 
 
+sub open_bitext{
+    my ($Bitext,$CorpusName,$CorpusRelease,$CorpusType,$SrcId,$TrgId) = @_;
+    my ($SentAlignFile, $CorpusDir) = find_bitext($Bitext,$CorpusName,
+						  $CorpusRelease,$CorpusType,
+						  $SrcId,$TrgId);
+    my $fh;
+    if ($SentAlignFile=~/\.gz/){
+	open $fh,"gzip -cd <$SentAlignFile |";
+    }
+    else{
+	open $fh,"<$SentAlignFile";
+    }
+    return wantarray ? ($fh,$CorpusDir) : $fh;
+}
+
+
+## find the bitext given some parameters
+## return (SentAlignFile,CorpusDir)
+
+sub find_bitext{
+    my ($Bitext,$CorpusName,$CorpusRelease,$CorpusType,$SrcId,$TrgId) = @_;
+
+    ## bitext = langpair if not specified otherwise
+    $Bitext = join('-',sort($SrcId,$TrgId)) unless ($Bitext);
+
+## unless we have the path to the sentence alignment file
+## split into components giving either
+##
+##    CorpusName/Release/Type/LangPair
+##    CorpusName/Type/LangPair
+##    CorpusName/LangPair
+##
+## sentence alignments are expected to be in either
+##    OPUS_RELEASES/CorpusName/Release/xml/LangPair.xml.gz  OR
+##    OPUS_CORPUS/CorpusName/xml/LangPair.xml.gz
+
+    unless (-e $Bitext){
+	my @parts = split(/\//,$Bitext);
+	my $LangPair   = pop(@parts);
+	$CorpusName    = shift(@parts) if (@parts);
+	$CorpusType    = pop(@parts) if (@parts);
+	$CorpusRelease = pop(@parts) if (@parts);
+
+	$Bitext = join('/',($OPUS_RELEASES,$CorpusName,
+			    $CorpusRelease,'xml',$LangPair));
+	$Bitext .= '.xml.gz';
+	unless (-e $Bitext){
+	    $Bitext = join('/',($OPUS_CORPUS,$CorpusName,
+				'xml',$LangPair));
+	    $Bitext .= '.xml.gz';
+	}
+    }
+
+## set corpus home dir 
+## (relative to aligned documents in sentence alignment file)
+##
+## - use CorpusName if it is a directory OR
+## - OPUS_RELEASES/CorpusName/CorpusRelease/CorpusType OR
+## - OPUS_CORPUS/CorpusName/CorpusType
+
+    my $CorpusDir = undef;
+    if (-d $CorpusName){
+	$CorpusDir = $CorpusName;
+    }
+    elsif ($CorpusName){
+	$CorpusDir = join('/',($OPUS_RELEASES,$CorpusName,
+			       $CorpusRelease,$CorpusType));
+	unless (-d $CorpusDir){
+	    $CorpusDir = join('/',($OPUS_CORPUS,$CorpusName,$CorpusType));
+	}
+    }
+    return ($Bitext,$CorpusDir);
+}
+
 
 
 
@@ -455,15 +533,37 @@ sub find_opus_document{
 
 ## open zip files and store a handle in ZipFiles
 sub open_zip_file{
-    my $zipfile = shift;
-    if (exists $ZipFiles{$zipfile}){
-	return $ZipFiles{$zipfile};
+    my $corpus = shift;
+    if (exists $ZipFiles{$corpus}){
+	return $ZipFiles{$corpus};
+    }
+
+    my $zipfile = $corpus;
+    unless (-e $zipfile){
+	my @parts = split(/\//,$zipfile);
+	if ($#parts){
+	    $parts[-2] = 'raw';
+	    $zipfile = join('/',@parts);
+	}
     }
     if (-e $zipfile){
-	$ZipFiles{$zipfile} = Archive::Zip->new($zipfile);
-	return $ZipFiles{$zipfile} if ($ZipFiles{$zipfile});
-	delete $ZipFiles{$zipfile};
+	$ZipFiles{$corpus} = Archive::Zip->new($zipfile);
+	my $basename = basename($zipfile);
+	$basename =~s/\.zip$//;
+	my $fh = Archive::Zip::MemberRead->new($ZipFiles{$corpus},
+					       $basename.'/'.'INFO');
+	unless ($fh->{member}){
+	    $fh = Archive::Zip::MemberRead->new($ZipFiles{$corpus},'INFO');
+	}
+	if ($fh->{member}){
+	    my $line = $fh->getline();
+	    my ($name,$type) = split(/\//,$line);
+	    $CorpusBase{$corpus} = $name.'/'.$type;
+	}
+	return $ZipFiles{$corpus} if ($ZipFiles{$corpus});
     }
+
+    delete $ZipFiles{$zipfile};
     return undef;
 }
 
@@ -473,21 +573,15 @@ sub open_opus_document{
     my ($fh,$dir,$doc) = @_;
 
     my ($lang) = split(/\//,$doc);
-    my $zip = $dir.'/'.$lang.'.zip';
+    my $zipfile = $dir.'/'.$lang.'.zip';
 
     ## try to open a zip file
-    my $zip = open_zip_file($dir.'/'.$lang.'.zip');
-    ## also try the raw dir instead of xml-dir
-    unless ($zip){
-	my $rawdir = $dir;
-	$rawdir=~s/(\A|\/)xml(\/|\Z)/${1}raw$2/;
-    }
-    $zip = open_zip_file($dir.'/'.$lang.'.zip');
-
+    my $zip = open_zip_file($zipfile);
     if ($zip){
-	$doc =~s/\.gz$//;           # remove .gz extension
-	$$fh = Archive::Zip::MemberRead->new($zip,$doc);
-	return 1 if ($fh);
+	$doc =~s/\.gz$//;                      # remove .gz extension
+	my $FileBase = $CorpusBase{$zipfile};  # file base in the corpus
+	$$fh = Archive::Zip::MemberRead->new($zip,$FileBase.'/'.$doc);
+	return 1 if ($$fh);
     }
 
     ## no zip file? then look for physical file

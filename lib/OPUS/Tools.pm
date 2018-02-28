@@ -78,8 +78,9 @@ foreach (@ALT_OPUS_HOME){
 }
 
 # our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
+# our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
+our $OPUS_PUBLIC   = $OPUS_HOME.'/web';
 our $OPUS_HTML     = $OPUS_HOME.'/html';
-our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
 our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
 our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
 our $OPUS_RELEASES = $OPUS_HOME.'/releases';

@@ -145,12 +145,14 @@ sub close_info_dbs{
 }
 
 sub set_corpus_info{
-    my ($corpus,$src,$trg,$infostr) = @_;
+    my ($corpus,$src,$trg,$infostr,$release) = @_;
 
     unless (defined $corpus && defined $src && defined $trg){
 	print STDERR "specify corpus src trg";
 	return 0;
     }
+    $release = 'latest' unless $release;
+    $corpuskey = $corpus.'@'.$release;
 
     &open_info_dbs unless ($DBOPEN);
 
@@ -158,14 +160,14 @@ sub set_corpus_info{
     foreach my $l ($src,$trg){
 	if (exists $Corpora{$l}){
 	    my @corpora = split(/\:/,$Corpora{$l});
-	    unless (grep($_ eq $corpus,@corpora)){
-		push(@corpora,$corpus);
+	    unless (grep($_ eq $corpuskey,@corpora)){
+		push(@corpora,$corpuskey);
 		@corpora = sort @corpora;
 		$Corpora{$l} = join(':',@corpora);
 	    }
 	}
 	else{
-	    $Corpora{$l} = $corpus;
+	    $Corpora{$l} = $corpuskey;
 	}
     }
 
@@ -173,14 +175,14 @@ sub set_corpus_info{
     my $langpair = join('-',sort ($src,$trg));
     if (exists $Bitexts{$langpair}){
 	my @corpora = split(/\:/,$Bitexts{$langpair});
-	unless (grep($_ eq $corpus,@corpora)){
-	    push(@corpora,$corpus);
+	unless (grep($_ eq $corpuskey,@corpora)){
+	    push(@corpora,$corpuskey);
 	    @corpora = sort @corpora;
 	    $Bitexts{$langpair} = join(':',@corpora);
 	}
     }
     else{
-	$Bitexts{$langpair} = $corpus;
+	$Bitexts{$langpair} = $corpuskey;
     }
 
 
@@ -214,7 +216,7 @@ sub set_corpus_info{
 	$infostr = read_info_files($corpus,$src,$trg);
     }
 
-    my $key = $corpus.'/'.$langpair;
+    my $key = $corpus.'/'.$langpair.'/'.$release;
     if ($infostr){
 	if ($VERBOSE){
 	    if (exists $Info{$key}){
@@ -230,19 +232,21 @@ sub set_corpus_info{
 
 
 sub delete_all_corpus_info{
-    my ($corpus) = @_;
+    my ($corpus,$release) = @_;
 
     unless (defined $corpus){
 	print STDERR "specify corpus src trg";
 	return 0;
     }
+    $release = 'latest' unless $release;
+    $corpuskey = $corpus.'@'.$release;
 
     &open_info_dbs unless ($DBOPEN);
 
     foreach my $c (keys %Corpora){
 	my @corpora = split(/\:/,$Corpora{$c});
 	if (grep($_ eq $corpus,@corpora)){
-	    @corpora = grep($_ ne $corpus,@corpora);
+	    @corpora = grep($_ ne $corpuskey,@corpora);
 	    @corpora = grep($_ ne '',@corpora);
 	    $Corpora{$c} = join(':',@corpora);
 	}
@@ -252,7 +256,7 @@ sub delete_all_corpus_info{
 
     foreach my $c (keys %Bitexts){
 	my @corpora = split(/\:/,$Bitexts{$c});
-	if (grep($_ eq $corpus,@corpora)){
+	if (grep($_ eq $corpuskey,@corpora)){
 	    @corpora = grep($_ ne $corpus,@corpora);
 	    @corpora = grep($_ ne '',@corpora);
 	    if (@corpora){
@@ -278,9 +282,11 @@ sub delete_all_corpus_info{
 
 
     foreach my $i (keys %Info){
-	my ($c,$l) = split(/\//,$i);
+	my ($c,$l,$r) = split(/\//,$i);
 	if ($c eq $corpus){
-	    delete $Info{$i};
+	    if ($r eq $release){
+		delete $Info{$i};
+	    }
 	}
     }
 }

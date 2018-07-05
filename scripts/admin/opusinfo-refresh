@@ -16,17 +16,27 @@ my ($corpus) = @ARGV;
 
 die "specify corpus" unless (defined $corpus);
 
-my @bitexts = glob("$OPUS_DOWNLOAD/$corpus/*.xml.gz");
-my %done = ();
 
-foreach my $b (@bitexts){
-    $b = basename($b);
-    if ($b=~/^([a-z\_]+)-([a-z\_]+).xml.gz/){
-	my ($src,$trg) = ($1,$2);
-	unless ($done{"$src-$trg"}){
-	    print STDERR "set info for $corpus $src-$trg\n";
-	    set_corpus_info($corpus,$src,$trg);
-	    $done{"$src-$trg"} = 1;
+opendir(my $dh, "$OPUS_RELEASES/$corpus") || die "Can't open $OPUS_RELEASES/$corpus: $!";
+while (readdir $dh) {
+    my $release = $_;
+    next if (/^\./);
+    next unless (-d "$OPUS_RELEASES/$corpus/$release");
+
+    my @bitexts = glob("$OPUS_RELEASES/$corpus/$release/xml/*.xml.gz");
+    my %done = ();
+
+    foreach my $b (@bitexts){
+	$b = basename($b);
+	if ($b=~/^([a-z\_]+)-([a-z\_]+).xml.gz/){
+	    my ($src,$trg) = ($1,$2);
+	    unless ($done{"$src-$trg"}){
+		print STDERR "set info for $corpus $src-$trg\n";
+		set_corpus_info($corpus,$src,$trg,$release);
+		$done{"$src-$trg"} = 1;
+	    }
 	}
     }
 }
+closedir $dh;
+

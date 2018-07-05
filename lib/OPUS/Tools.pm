@@ -153,8 +153,11 @@ sub set_corpus_info{
 	print STDERR "specify corpus src trg";
 	return 0;
     }
-    $release = 'latest' unless $release;
-    my $corpuskey = $corpus.'@'.$release;
+    $release = get_corpus_version($corpus) unless ($release);
+
+    my $ReleaseBase = $corpus.'/'.$release;
+    my $ReleaseDir  = $OPUS_RELEASES.'/'.$ReleaseBase;
+    my $corpuskey   = $corpus.'@'.$release;
 
     &open_info_dbs unless ($DBOPEN);
 
@@ -238,10 +241,10 @@ sub set_corpus_info{
     }
 
     unless ($infostr){
-	$infostr = read_info_files($corpus,$src,$trg);
+	$infostr = read_info_files($corpus,$release,$src,$trg);
     }
 
-    my $key = $corpus.'/'.$langpair.'/'.$release;
+    my $key = $corpus.'/'.$release.'/'.$langpair;
     if ($infostr){
 	if ($VERBOSE){
 	    if (exists $Info{$key}){
@@ -252,6 +255,33 @@ sub set_corpus_info{
 	    }
 	}
 	$Info{$key} = $infostr;
+    }
+
+    ## info for monolingual data
+    for my $l ($src,$trg){
+	my @infos = ();
+	if (-e "$ReleaseDir/xml/$l.zip"){
+	    push(@infos,"xml=$ReleaseBase/xml/$l.zip");
+	}
+	if (-e "$ReleaseDir/raw/$l.zip"){
+	    push(@infos,"raw=$ReleaseBase/raw/$l.zip");
+	}
+	if (-e "$ReleaseDir/mono/$l.txt.gz"){
+	    push(@infos,"mono=$ReleaseBase/mono/$l.txt.gz");
+	}
+	if (-e "$ReleaseDir/mono/$l.tok.gz"){
+	    push(@infos,"monotok=$ReleaseBase/mono/$l.tok.gz");
+	}
+	if (-e "$ReleaseDir/freq/$l.freq.gz"){
+	    push(@infos,"freq=$ReleaseBase/freq/$l.freq.gz");
+	}
+	if (-e "$ReleaseDir/parsed/$l.zip"){
+	    push(@infos,"parsed=$ReleaseBase/parsed/$l.zip");
+	}
+	if (@infos){
+	    $key = $corpus.'/'.$release.'/'.$l;
+	    $Info{$key} = join('+',@infos);;
+	}
     }
 }
 
@@ -327,25 +357,25 @@ sub get_corpus_version{
 
 
 sub read_info_files{
-    my ($corpus,$src,$trg,$release) = @_;
+    my ($corpus,$release,$src,$trg) = @_;
 
     my $langpair    = join('-',sort ($src,$trg));
     $release        = get_corpus_version($corpus) unless ($release);
     my $ReleaseBase = $corpus.'/'.$release;
-    my $InfoDir     = $OPUS_RELEASES.'/'.$ReleaseBase.'/info';
+    my $ReleaseDir  = $OPUS_RELEASES.'/'.$ReleaseBase;
+    my $InfoDir     = $ReleaseDir.'/info';
 
-    # my $moses = 'moses='.$ReleaseBase.'/moses/'.$langpair.'.txt.zip';
-    # my $tmx   = 'tmx='.$ReleaseBase.'/tmx/'.$langpair.'.tmx.gz';
-    # my $xces  = 'xces='.$ReleaseBase.'/xml/'.$langpair.'.xml.gz:';
-    # $xces    .= $ReleaseBase.'/xml/'.$src.'.zip:';
-    # $xces    .= $ReleaseBase.'/xml/'.$trg.'.zip';
+    my $moses = 'moses='.$ReleaseBase.'/moses/'.$langpair.'.txt.zip';
+    my $tmx   = 'tmx='.$ReleaseBase.'/tmx/'.$langpair.'.tmx.gz';
+    my $xces  = 'xces='.$ReleaseBase.'/xml/'.$langpair.'.xml.gz:';
+    $xces    .= $ReleaseBase.'/xml/'.$src.'.zip:';
+    $xces    .= $ReleaseBase.'/xml/'.$trg.'.zip';
 
-    my $moses = 'moses=moses/'.$langpair.'.txt.zip';
-    my $tmx   = 'tmx=tmx/'.$langpair.'.tmx.gz';
-    my $xces  = 'xces=xml/'.$langpair.'.xml.gz:';
-    $xces    .= 'xml/'.$src.'.zip:';
-    $xces    .= 'xml/'.$trg.'.zip';
-
+    # my $moses = 'moses=moses/'.$langpair.'.txt.zip';
+    # my $tmx   = 'tmx=tmx/'.$langpair.'.tmx.gz';
+    # my $xces  = 'xces=xml/'.$langpair.'.xml.gz:';
+    # $xces    .= 'xml/'.$src.'.zip:';
+    # $xces    .= 'xml/'.$trg.'.zip';
 
     my @infos = ();
 
@@ -371,6 +401,16 @@ sub read_info_files{
 	chomp(@val);
 	$xces .= ':'.join(':',@val);
 	push(@infos,$xces);
+    }
+
+    if (-e "$ReleaseDir/smt/$langpair.alg.zip"){
+	push(@infos,"alg=$ReleaseBase/smt/$langpair.alg.zip");
+    }
+    if (-e "$ReleaseDir/smt/$langpair.zip"){
+	push(@infos,"smt=$ReleaseBase/smt/$langpair.zip");
+    }
+    if (-e "$ReleaseDir/dic/$langpair.dic.gz"){
+	push(@infos,"dic=$ReleaseBase/dic/$langpair.dic.gz");
     }
 
     return join('+',@infos);

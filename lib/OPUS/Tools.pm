@@ -52,17 +52,19 @@ use Archive::Zip qw/ :ERROR_CODES :CONSTANTS /;
 use Archive::Zip::MemberRead;
 use File::Basename qw(dirname basename);
 
+use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
+
 
 our @EXPORT = qw(set_corpus_info delete_all_corpus_info
                  find_opus_document find_opus_documents 
                  find_bitext find_sentalign_file
                  open_bitext open_opus_document
-                 $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD);
+                 $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD $OPUS_RELEASES);
 
 
 # set OPUS home dir
 my @ALT_OPUS_HOME = ( '/proj/OPUS',                # taito
-		      '/projects/nlpl/data/OPUS'); # abel
+		      '/projects/nlpl/data/OPUS',  # abel
 		      '/home/opus/OPUS',           # lingfil
 		      $ENV{HOME}.'/OPUS',          # user home
 		      $ENV{HOME}.'/research//OPUS');
@@ -79,12 +81,12 @@ foreach (@ALT_OPUS_HOME){
 ## set OPUS release dir
 my @ALT_OPUS_NLPL = ( '/proj/nlpl/data/OPUS',      # taito
 		      '/projects/nlpl/data/OPUS',  # abel
-                      $OPUS_HOME.'/releases' );
+                      $OPUS_HOME.'/releases');
 
 our $OPUS_RELEASES = $OPUS_HOME;
 foreach (@ALT_OPUS_NLPL){
     if (-d $_){
-	$OPUS_HOME = $_;
+	$OPUS_RELEASES = $_;
 	last;
     }
 }
@@ -145,26 +147,39 @@ sub close_info_dbs{
 }
 
 sub set_corpus_info{
-    my ($corpus,$src,$trg,$infostr,$release) = @_;
+    my ($corpus,$release,$src,$trg,$infostr) = @_;
 
     unless (defined $corpus && defined $src && defined $trg){
 	print STDERR "specify corpus src trg";
 	return 0;
     }
     $release = 'latest' unless $release;
-    $corpuskey = $corpus.'@'.$release;
+    my $corpuskey = $corpus.'@'.$release;
 
     &open_info_dbs unless ($DBOPEN);
 
     ## set corpus for source and target language
     foreach my $l ($src,$trg){
+	if (! exists $LangNames{$l}){
+	    $LangNames{$l} = &iso639_ThreeToName(&iso639_TwoToThree($l));
+	}
 	if (exists $Corpora{$l}){
 	    my @corpora = split(/\:/,$Corpora{$l});
-	    unless (grep($_ eq $corpuskey,@corpora)){
-		push(@corpora,$corpuskey);
-		@corpora = sort @corpora;
-		$Corpora{$l} = join(':',@corpora);
+	    my ($found) = grep(index($_,$corpus.'@') == 0,@corpora);
+	    if ($found){
+		my @releases = split(/\@/,$found);
+		shift(@releases);
+		unless (grep($_ eq $release,@releases)){
+		    $found .= '@'.$release;
+		    @corpora = grep(index($_,$corpus.'@') != 0,@corpora);
+		    push(@corpora,$found);
+		}
 	    }
+	    else{
+		push(@corpora,$corpuskey);
+	    }
+	    @corpora = sort @corpora;
+	    $Corpora{$l} = join(':',@corpora);
 	}
 	else{
 	    $Corpora{$l} = $corpuskey;
@@ -175,11 +190,21 @@ sub set_corpus_info{
     my $langpair = join('-',sort ($src,$trg));
     if (exists $Bitexts{$langpair}){
 	my @corpora = split(/\:/,$Bitexts{$langpair});
-	unless (grep($_ eq $corpuskey,@corpora)){
-	    push(@corpora,$corpuskey);
-	    @corpora = sort @corpora;
-	    $Bitexts{$langpair} = join(':',@corpora);
+	my ($found) = grep(index($_,$corpus.'@') == 0,@corpora);
+	if ($found){
+	    my @releases = split(/\@/,$found);
+	    shift(@releases);
+	    unless (grep($_ eq $release,@releases)){
+		$found .= '@'.$release;
+		@corpora = grep(index($_,$corpus.'@') != 0,@corpora);
+		push(@corpora,$found);
+	    }
 	}
+	else{
+	    push(@corpora,$corpuskey);
+	}
+	@corpora = sort @corpora;
+	$Bitexts{$langpair} = join(':',@corpora);
     }
     else{
 	$Bitexts{$langpair} = $corpuskey;
@@ -232,21 +257,19 @@ sub set_corpus_info{
 
 
 sub delete_all_corpus_info{
-    my ($corpus,$release) = @_;
+    my ($corpus) = @_;
 
     unless (defined $corpus){
 	print STDERR "specify corpus src trg";
 	return 0;
     }
-    $release = 'latest' unless $release;
-    $corpuskey = $corpus.'@'.$release;
 
     &open_info_dbs unless ($DBOPEN);
 
     foreach my $c (keys %Corpora){
 	my @corpora = split(/\:/,$Corpora{$c});
 	if (grep($_ eq $corpus,@corpora)){
-	    @corpora = grep($_ ne $corpuskey,@corpora);
+	    @corpora = grep(index($_,$corpus.'@') != 0,@corpora);
 	    @corpora = grep($_ ne '',@corpora);
 	    $Corpora{$c} = join(':',@corpora);
 	}
@@ -256,8 +279,8 @@ sub delete_all_corpus_info{
 
     foreach my $c (keys %Bitexts){
 	my @corpora = split(/\:/,$Bitexts{$c});
-	if (grep($_ eq $corpuskey,@corpora)){
-	    @corpora = grep($_ ne $corpus,@corpora);
+	if (grep($_ eq $corpus,@corpora)){
+	    @corpora = grep(index($_,$corpus.'@') != 0,@corpora);
 	    @corpora = grep($_ ne '',@corpora);
 	    if (@corpora){
 		$Bitexts{$c} = join(':',@corpora);
@@ -280,13 +303,10 @@ sub delete_all_corpus_info{
 	$LangPairs{$l}=join(':',sort keys %{$src2trg{$l}});
     }
 
-
     foreach my $i (keys %Info){
 	my ($c,$l,$r) = split(/\//,$i);
 	if ($c eq $corpus){
-	    if ($r eq $release){
-		delete $Info{$i};
-	    }
+	    delete $Info{$i};
 	}
     }
 }
@@ -314,11 +334,18 @@ sub read_info_files{
     my $ReleaseBase = $corpus.'/'.$release;
     my $InfoDir     = $OPUS_RELEASES.'/'.$ReleaseBase.'/info';
 
-    my $moses = 'moses='.$ReleaseBase.'/moses/'.$langpair.'.txt.zip';
-    my $tmx   = 'tmx='.$ReleaseBase.'/tmx/'.$langpair.'.tmx.gz';
-    my $xces  = 'xces='.$ReleaseBase.'/xml/'.$langpair.'.xml.gz:';
-    $xces    .= $ReleaseBase.'/xml/'.$src.'.zip:';
-    $xces    .= $ReleaseBase.'/xml/'.$trg.'.zip';
+    # my $moses = 'moses='.$ReleaseBase.'/moses/'.$langpair.'.txt.zip';
+    # my $tmx   = 'tmx='.$ReleaseBase.'/tmx/'.$langpair.'.tmx.gz';
+    # my $xces  = 'xces='.$ReleaseBase.'/xml/'.$langpair.'.xml.gz:';
+    # $xces    .= $ReleaseBase.'/xml/'.$src.'.zip:';
+    # $xces    .= $ReleaseBase.'/xml/'.$trg.'.zip';
+
+    my $moses = 'moses=moses/'.$langpair.'.txt.zip';
+    my $tmx   = 'tmx=tmx/'.$langpair.'.tmx.gz';
+    my $xces  = 'xces=xml/'.$langpair.'.xml.gz:';
+    $xces    .= 'xml/'.$src.'.zip:';
+    $xces    .= 'xml/'.$trg.'.zip';
+
 
     my @infos = ();
 

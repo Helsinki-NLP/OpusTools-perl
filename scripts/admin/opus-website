@@ -301,8 +301,8 @@ sub Statistics{
     push (@rows,&th(['language','files','tokens','sentences']));
     foreach my $t (sort keys %{$lang}){
 	my $txt = $t;
-	if (-e "$RELEASEDIR/mono/$CORPUS.$t.gz"){
-	    $txt  = "<a rel=\"nofollow\" title='monolingual tokenized $t plain text' href=\"download.php?f=$RELEASEBASE/mono/$CORPUS.$t.gz\">$t</a>\n";
+	if (-e "$RELEASEDIR/mono/$t.tok.gz"){
+	    $txt  = "<a rel=\"nofollow\" title='monolingual tokenized $t plain text' href=\"download.php?f=$RELEASEBASE/mono/$t.tok.gz\">$t</a>\n";
 	}
 	$rows[-1].=(&th([$txt]));
    }
@@ -315,8 +315,8 @@ sub Statistics{
 	    &LanguageStatistics($$lang{$s});
 
 	my $txt = $s;
-	if (-e "$RELEASEDIR/mono/$CORPUS.raw.$s.gz"){
-	    $txt  = "<a rel=\"nofollow\" title='monolingual untokenized $s plain text' href=\"download.php?f=$RELEASEBASE/mono/$CORPUS.raw.$s.gz\">$s</a>\n";
+	if (-e "$RELEASEDIR/mono/$s.txt.gz"){
+	    $txt  = "<a rel=\"nofollow\" title='monolingual untokenized $s plain text' href=\"download.php?f=$RELEASEBASE/mono/$s.txt.gz\">$s</a>\n";
 	}
 	push (@rows,&th([$txt]).&td([&thousands($nrFiles{$s}),
 				     pretty_number($nrTokens{$s}),

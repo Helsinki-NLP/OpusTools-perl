@@ -61,10 +61,8 @@ our @EXPORT = qw(set_corpus_info delete_all_corpus_info
 
 
 # set OPUS home dir
-
-my @ALT_OPUS_HOME = ( '/proj/nlpl/data/OPUS',      # taito
-		      '/projects/nlpl/data/OPUS',  # abel
-		      '/proj/OPUS',                # taito (old)
+my @ALT_OPUS_HOME = ( '/proj/OPUS',                # taito
+		      '/projects/nlpl/data/OPUS'); # abel
 		      '/home/opus/OPUS',           # lingfil
 		      $ENV{HOME}.'/OPUS',          # user home
 		      $ENV{HOME}.'/research//OPUS');
@@ -77,13 +75,27 @@ foreach (@ALT_OPUS_HOME){
     }
 }
 
+
+## set OPUS release dir
+my @ALT_OPUS_NLPL = ( '/proj/nlpl/data/OPUS',      # taito
+		      '/projects/nlpl/data/OPUS',  # abel
+                      $OPUS_HOME.'/releases' );
+
+our $OPUS_RELEASES = $OPUS_HOME;
+foreach (@ALT_OPUS_NLPL){
+    if (-d $_){
+	$OPUS_HOME = $_;
+	last;
+    }
+}
+
+
 # our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
 # our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
 our $OPUS_PUBLIC   = $OPUS_HOME.'/web';
 our $OPUS_HTML     = $OPUS_HOME.'/html';
 our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
 our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
-our $OPUS_RELEASES = $OPUS_HOME.'/releases';
 our $INFODB_HOME   = $OPUS_PUBLIC;
 
 our $VERBOSE = 0;
@@ -105,6 +117,14 @@ my $DBOPEN = 0;
 my %ZipFiles;
 my %CorpusBase;
 
+
+## various database files that keep information about corpora
+##
+## LangNames: maps language names to language Ids
+##   Corpora: "language" -> list-of-corpora
+## LangPairs: "source-lang" -> list-of-target-langs
+##   Bitexts: "src-trg" -> list-of-corpora
+##      Info: "corpus/src-trg" -> list-of-files-and-statistics
 
 sub open_info_dbs{
     tie %LangNames,"DB_File","$INFODB_HOME/LangNames.db";
@@ -283,10 +303,10 @@ sub get_corpus_version{
 sub read_info_files{
     my ($corpus,$src,$trg,$release) = @_;
 
-    my $CorpusXML   = $OPUS_HOME.'/corpus/'.$corpus.'/xml';
     my $langpair    = join('-',sort ($src,$trg));
     $release        = get_corpus_version($corpus) unless ($release);
     my $ReleaseBase = $corpus.'/'.$release;
+    my $InfoDir     = $OPUS_RELEASES.'/'.$ReleaseBase.'/info';
 
     my $moses = 'moses='.$ReleaseBase.'/moses/'.$langpair.'.txt.zip';
     my $tmx   = 'tmx='.$ReleaseBase.'/tmx/'.$langpair.'.tmx.gz';
@@ -296,24 +316,24 @@ sub read_info_files{
 
     my @infos = ();
 
-    if (-e "$CorpusXML/$langpair.txt.info"){
-	open F, "<$CorpusXML/$langpair.txt.info";
+    if (-e "$InfoDir/$langpair.txt.info"){
+	open F, "<$InfoDir/$langpair.txt.info";
 	my @val = <F>;
 	chomp(@val);
 	$moses .= ':'.join(':',@val);
 	push(@infos,$moses);
     }
 
-    if (-e "$CorpusXML/$langpair.tmx.info"){
-	open F, "<$CorpusXML/$langpair.tmx.info";
+    if (-e "$InfoDir/$langpair.tmx.info"){
+	open F, "<$InfoDir/$langpair.tmx.info";
 	my @val = <F>;
 	chomp(@val);
 	$tmx .= ':'.join(':',@val);
 	push(@infos,$tmx);
     }
 
-    if (-e "$CorpusXML/$langpair.info"){
-	open F, "<$CorpusXML/$langpair.info";
+    if (-e "$InfoDir/$langpair.info"){
+	open F, "<$InfoDir/$langpair.info";
 	my @val = <F>;
 	chomp(@val);
 	$xces .= ':'.join(':',@val);

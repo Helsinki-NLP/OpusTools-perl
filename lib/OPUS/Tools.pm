@@ -259,28 +259,10 @@ sub set_corpus_info{
 
     ## info for monolingual data
     for my $l ($src,$trg){
-	my @infos = ();
-	if (-e "$ReleaseDir/xml/$l.zip"){
-	    push(@infos,"xml=$ReleaseBase/xml/$l.zip");
-	}
-	if (-e "$ReleaseDir/raw/$l.zip"){
-	    push(@infos,"raw=$ReleaseBase/raw/$l.zip");
-	}
-	if (-e "$ReleaseDir/mono/$l.txt.gz"){
-	    push(@infos,"mono=$ReleaseBase/mono/$l.txt.gz");
-	}
-	if (-e "$ReleaseDir/mono/$l.tok.gz"){
-	    push(@infos,"monotok=$ReleaseBase/mono/$l.tok.gz");
-	}
-	if (-e "$ReleaseDir/freq/$l.freq.gz"){
-	    push(@infos,"freq=$ReleaseBase/freq/$l.freq.gz");
-	}
-	if (-e "$ReleaseDir/parsed/$l.zip"){
-	    push(@infos,"parsed=$ReleaseBase/parsed/$l.zip");
-	}
-	if (@infos){
+	$infostr = read_info_files($corpus,$release,$l);
+	if ($infostr){
 	    $key = $corpus.'/'.$release.'/'.$l;
-	    $Info{$key} = join('+',@infos);;
+	    $Info{$key} = $infostr;
 	}
     }
 }
@@ -359,6 +341,14 @@ sub get_corpus_version{
 sub read_info_files{
     my ($corpus,$release,$src,$trg) = @_;
 
+    return &read_bitext_info(@_) if ($trg);
+    return &read_monolingual_info(@_) if ($src);
+    return '';
+}
+
+sub read_bitext_info{
+    my ($corpus,$release,$src,$trg) = @_;
+
     my $langpair    = join('-',sort ($src,$trg));
     $release        = get_corpus_version($corpus) unless ($release);
     my $ReleaseBase = $corpus.'/'.$release;
@@ -415,6 +405,52 @@ sub read_info_files{
 
     return join('+',@infos);
 }
+
+
+sub read_monolingual_info{
+    my ($corpus,$release,$lang) = @_;
+
+    $release        = get_corpus_version($corpus) unless ($release);
+    my $ReleaseBase = $corpus.'/'.$release;
+    my $ReleaseDir  = $OPUS_RELEASES.'/'.$ReleaseBase;
+    my $InfoDir     = $ReleaseDir.'/info';
+
+    my @infos = ();
+
+    my @langstats = ();
+    if (-e "$InfoDir/$lang.info"){
+	open F, "<$InfoDir/$lang.info";
+	@langstats = <F>;
+	chomp(@langstats);
+    }
+
+    if (-e "$ReleaseDir/xml/$lang.zip"){
+	my $resource = "xml=$ReleaseBase/xml/$lang.zip";
+	$resource .= ':'.join(':',@langstats) if (@langstats);
+	push(@infos,$resource);
+    }
+    if (-e "$ReleaseDir/raw/$lang.zip"){
+	my $resource = "raw=$ReleaseBase/raw/$lang.zip";
+	pop(@langstats);
+	$resource .= ':'.join(':',@langstats) if (@langstats);
+	push(@infos,$resource);
+    }
+    if (-e "$ReleaseDir/mono/$lang.txt.gz"){
+	push(@infos,"mono=$ReleaseBase/mono/$lang.txt.gz");
+    }
+    if (-e "$ReleaseDir/mono/$lang.tok.gz"){
+	push(@infos,"monotok=$ReleaseBase/mono/$lang.tok.gz");
+    }
+    if (-e "$ReleaseDir/freq/$lang.freq.gz"){
+	push(@infos,"freq=$ReleaseBase/freq/$lang.freq.gz");
+    }
+    if (-e "$ReleaseDir/parsed/$lang.zip"){
+	push(@infos,"parsed=$ReleaseBase/parsed/$lang.zip");
+    }
+
+    return join('+',@infos);
+}
+
 
 
 

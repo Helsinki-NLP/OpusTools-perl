@@ -32,7 +32,15 @@ opus2moses
 
  -r .................... process untokenized (raw) XML (no length filtering)
 
- -M .................... read all sentences into memory for each linked document
+ -S .................... read sentences sequentially (requires monotonic links)
+                         (some sentence pairs may be missing if this fails!)
+
+=head1 OBSOLETE:
+
+The following option is now obsolete because the option for reading all sentences
+into memory is now the default. Switch this off by using -S.
+
+ -M .................... read all sentences into memory for an aligned document
                          before extracting linked sentences (for non-monotonic links)
 
 =head1 LICENSE
@@ -64,10 +72,16 @@ use FileHandle;
 use File::Basename;
 
 
-use vars qw($opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m $opt_M);
+use vars qw($opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m $opt_M $opt_S);
 use Getopt::Std;
 
-getopts('s:t:d:n:ie:f:hp:l1x:rmM');
+getopts('s:t:d:n:ie:f:hp:l1x:rmMS');
+
+## -M is now on by default! -S can switch it off
+## Why? sequential reading is not very reliable
+## --> better read all sentences into memory before
+##     printing aligned sentences!
+$opt_M = 1 unless ($opt_S);
 
 if ($opt_h){
     print <<"EOH";
@@ -89,8 +103,9 @@ if ($opt_h){
  -e src-data-file ...... output file for source language data (default = src)
  -f src-data-file ...... output file for target language data (default = trg)
  -1 .................... extract 1:1 sentence alignments only
- -x max ................ maximum size of selected sentences (default=80)
+ -x max ................ maximum size of selected sentences (default=100)
  -r .................... process untokenized (raw) XML (no length filtering)
+ -S .................... read sentences sequentially (requires monotonic links)
 
 EOH
     exit;
@@ -520,11 +535,13 @@ sub XmlTagStart{
 
 sub XmlChar{
     my ($p,$c)=@_;
-    if ($p->{OPENW} || $opt_r){
-	if ($opt_M || ($p->{OPENSID} eq $p->{IDS}->[0])){
+    if (exists $p->{OPENSID}){
+	if ($p->{OPENW} || $opt_r){
+	    if ($opt_M || ($p->{OPENSID} eq $p->{IDS}->[0])){
 #	    $c=~tr/| \n/___/;
-	    $p->{WATTR}->{word}.=$c;
-	    $p->{WATTR}->{word}.=' ' if ($opt_r);
+		$p->{WATTR}->{word}.=$c;
+		$p->{WATTR}->{word}.=' ' if ($opt_r);
+	    }
 	}
     }
 }

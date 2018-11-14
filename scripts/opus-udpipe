@@ -21,6 +21,8 @@ opus-udpipe
  -L .................. list supported languages
  -M .................. list UDPipe models
 
+Option -M can be combined with -D and -L/-l to get various kinds of combined output.
+
 =head1 TODO
 
 Treat markup inside of sentences! 
@@ -171,12 +173,31 @@ foreach (@AllModels){
 
 # just list supported languages and models
 if ($opt_L){
+    if ($opt_M){
+	foreach my $l (sort keys %UDmodels){
+	    if ($opt_D){
+		print $l,':',$ModelDir,'/',$UDmodels{$l},"\n";
+	    }
+	    else{
+		print $l,':',$UDmodels{$l},"\n";
+	    }
+	}
+	exit 0;
+    }
     print join(' ',sort keys %UDmodels);
     print "\n";
     exit 0;
 }
 if ($opt_M){
-
+    if ($opt_l){
+	if ($opt_D){
+	    print $ModelDir,'/',$UDmodels{$opt_l},"\n";
+	}
+	else{
+	    print $UDmodels{$opt_l},"\n";
+	}
+	exit 0;
+    }
     print join("\n",sort values %UDmodels);
     print "\n";
     exit 0;

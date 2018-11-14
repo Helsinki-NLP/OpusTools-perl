@@ -337,8 +337,10 @@ sub ParseAllSentences{
 	    $$wordcounter{$handle->{CLOSEDSID}} = $handle->{NRWORDS};
 	    $handle->{OUTSTR} = '';
 	    $handle->{NRWORDS} = 0;
+	    delete $handle->{CLOSEDSID};
 	}
     }
+    print '';
 }
 
 

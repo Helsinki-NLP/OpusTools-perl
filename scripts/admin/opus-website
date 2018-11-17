@@ -27,6 +27,7 @@ use Getopt::Std;
 use File::Basename;
 
 use lib "$Bin/../../lib";
+use OPUS::Tools;
 use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
 our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r);
@@ -759,7 +760,7 @@ sub HtmlEnd{
 
 sub store_info{
     my $corpus = shift;
-    my $release = shift
+    my $release = shift;
     my $lang = shift;     # hash of languages in that corpus (incl corpus name)
     my $bitexts = shift;  # hash of bitexts (xces alignment files
 

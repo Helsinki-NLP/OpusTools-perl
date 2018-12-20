@@ -59,7 +59,9 @@ our @EXPORT = qw(set_corpus_info delete_all_corpus_info
                  find_opus_document find_opus_documents 
                  find_bitext find_sentalign_file
                  open_bitext open_opus_document
-                 $OPUS_HOME $OPUS_CORPUS $OPUS_HTML $OPUS_DOWNLOAD $OPUS_RELEASES);
+                 $OPUS_HOME $OPUS_CORPUS $OPUS_HTML 
+                 $OPUS_DOWNLOAD $OPUS_RELEASES
+                 $OPUS_PUBLIC);
 
 
 # set OPUS home dir

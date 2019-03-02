@@ -193,7 +193,7 @@ if (-e $IntraLinkFile){
 # (we will call it English in the following)
 
 print "find all common documents ...\n";
-my $docs = get_common_docs($pivot,@languages);
+my ($docs,$InterDocs) = get_common_docs($pivot,@languages);
 print "number of common aligned docs: ", scalar keys %{$docs},"\n";
 
 # read through the sentence alignment files again and get all links
@@ -203,11 +203,11 @@ my %links=();
 
 foreach my $l (@languages){
     my $fromEnglish = 0;
-    if (-f "$xmldir/$l-$pivot$EXT"){
+    if (-f "$xmldir/$l-$pivot.$EXT"){
 	open F,"gzip -cd < $xmldir/$l-$pivot.$EXT |" || 
 	    die "cannot open $xmldir/$l-$pivot.$EXT";
     }
-    elsif (-f "$xmldir/$pivot-$l$EXT"){
+    elsif (-f "$xmldir/$pivot-$l.$EXT"){
 	open F,"gzip -cd < $xmldir/$pivot-$l.$EXT |" || 
 	    die "cannot open $xmldir/$pivot-$l.$EXT";
 	$fromEnglish = 1;
@@ -229,16 +229,31 @@ foreach my $l (@languages){
     my ($EnglishDoc,$ForeignDoc,$idx);
     while (<F>){
 
+	next unless (/Doc=\"/);
 	if (/Doc=\"$pivot\/([^"]+)"/){
 	    $EnglishDoc=$1;
 	    if (/Doc=\"$l\/([^"]+)"/){
 		$ForeignDoc=$1;
 	    }
 	}
+	next unless ($EnglishDoc && $ForeignDoc);
 
-	next if (not exists $$docs{$EnglishDoc});
-	my ($LinkedDoc,$TargetDoc) = split(/\s\=\>\s/,$$docs{$EnglishDoc}{$l});
-	next if ($LinkedDoc ne $ForeignDoc);
+	my $TargetDoc = undef;
+	if (exists $$InterDocs{$EnglishDoc}){
+	    if (exists $$InterDocs{$EnglishDoc}{$l}){
+		$TargetDoc = $$InterDocs{$EnglishDoc}{$l};
+	    }
+	}
+
+	#if (not exists $$docs{$EnglishDoc}){
+	#    next unless (exists $$InterDocs{$EnglishDoc});
+	#    next unless (exists $$InterDocs{$EnglishDoc}{$l});
+	#    next unless (exists $$InterDocs{$EnglishDoc}{$l}{$ForeignDoc});
+	#    $TargetDoc = $$InterDocs{$EnglishDoc}{$l}{$ForeignDoc};
+	#}
+	# next unless ($TargetDoc);
+	# my ($LinkedDoc,$TargetDoc) = split(/\s\=\>\s/,$$docs{$EnglishDoc}{$l});
+	# next if ($LinkedDoc ne $ForeignDoc);
 
 	print "process $EnglishDoc ...\n" if ($opt_v);
 
@@ -265,10 +280,13 @@ foreach my $l (@languages){
 
 	## we may also have transitive links
 	if ($opt_i and $TargetDoc){
+	    # my %translinks = transitive_links(\%doclinks,
+	    # 				      $ForeignDoc,$TargetDoc,$EnglishDoc);
 	    my %translinks = transitive_links(\%doclinks,
-					      $ForeignDoc,$EnglishDoc,$TargetDoc);
+	    				      $ForeignDoc,$EnglishDoc,$TargetDoc);
 	    foreach my $trg (keys %translinks){
 		$links{$TargetDoc}{$l}{$translinks{$trg}}=$trg;
+		# $links{$EnglishDoc}{$l}{$translinks{$trg}}=$trg;
 	    }
 	}
 	
@@ -365,15 +383,12 @@ foreach my $d (sort keys %links){
 	}
     }
 
+    next unless (@segments);
 
     # print links for each language pair (pivot to foreign)
 
     foreach my $l (@languages){
 	my $F = $fh{$l};
-	# if ($$docs{$d}{$l}=~/=>/){
-	#     print '';
-	# }
-	# print STDERR "todoc = $l/$$docs{$d}{$l}\n";
 	print $F "<linkGrp targType=\"s\" fromDoc=\"$pivot/$d\" ";
 	print $F "toDoc=\"$l/$$docs{$d}{$l}\">\n";
 	foreach my $s (0..$#segments){
@@ -492,8 +507,9 @@ sub get_common_docs{
 
     my $pivot = shift(@_);
     my @languages = @_;
-    my $docs={};
-    my %counts=();
+    my $docs      = {};
+    my $InterDocs = {};
+    my %counts    = ();
     # my %movies = ();
 
     foreach my $l (@languages){
@@ -532,19 +548,15 @@ sub get_common_docs{
 	if ($opt_i){
 	    foreach my $l (@languages){
 		if (not exists $$docs{$_}{$l}){
-		    my ($interdoc,$doc) = find_intermediate_file($docs,$_,$l);
-		    if ($interdoc){
-			## TODO: why would we need this?
-			##       --> it creates a problem when printing toDoc
-			# $$docs{$interdoc}{$l} = "$doc => $_";
-			$$docs{$_}{$l} = $doc;
+		    foreach my $d (keys %{$IntraLingLinks{$_}}){
+			if (exists $$docs{$d}){
+			    if ($$docs{$d}{$l}){
+				$$InterDocs{$d}{$l} = $_;          ## save the pivot document
+				$$docs{$_}{$l} = $$docs{$d}{$l};   ## add the target doc
+				last;  ## TODO: should we stop here?
+			    }
+			}
 		    }
-		    # elsif ($opt_v){
-		    # 	my ($year,$movie,$subid) = split(/\//);
-		    # 	if (exists $movies{"$year/$movie"}{$l}){
-		    # 	    print "subtitles for $l/$year/$movie exist but no link path found via $_!\n";
-		    # 	}
-		    # }
 		}
 	    }
 	}
@@ -555,10 +567,11 @@ sub get_common_docs{
     foreach (keys %counts){
 	print "number of documents in $_: ",$counts{$_},"\n";
     }
-    return $docs;
+    return ($docs,$InterDocs);
 }
 
 
+## this sub is obsolete
 sub find_intermediate_file{
     my ($docs,$engdoc,$lang) = @_;
     if ($opt_v){

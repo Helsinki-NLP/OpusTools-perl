@@ -10,7 +10,7 @@ name          'OPUS-Tools';
 license       'gpl';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
-version       '0.04';
+version       '0.2.1';
 
 install_script 'scripts/opus-cat';
 install_script 'scripts/opus-read';

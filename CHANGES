@@ -1,4 +1,8 @@
 
+* v0.2.1
+
+- fixed opus2multi error when using intralingual links
+
 * v0.04
 
 - opus-read can read from zip files

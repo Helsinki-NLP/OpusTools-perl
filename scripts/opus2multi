@@ -25,10 +25,12 @@
 
 use strict;
 
-use vars qw($opt_a $opt_s $opt_h $opt_i $opt_e $opt_v);
+use vars qw($opt_a $opt_s $opt_h $opt_i $opt_e $opt_v $opt_E);
 use Getopt::Std;
 
-getopts('aei:hs:t:v');
+getopts('aeE:i:hs:t:v');
+
+my $EXT = $opt_E || 'xml.gz';  # file extension of alignment files
 
 if ($opt_h){
     print <<"EOH";
@@ -62,6 +64,7 @@ OPTIONS:
  -e ................. keep segments with empty links in any of the languages
  -i pivot-links ..... intralingual pivot link file
  -a ................. same as -i but read intralingual links from xmldir/../alt/
+ -E ext ............. specify extension of align files (default = xml.gz)
  -s nr .............. max number of sentences in an alignment unit
  -h ................. this help
 
@@ -199,20 +202,30 @@ print "number of common aligned docs: ", scalar keys %{$docs},"\n";
 my %links=();
 
 foreach my $l (@languages){
-    print "read links for $pivot-$l ...\n";
     my $fromEnglish = 0;
-    if (-f "$xmldir/$l-$pivot.xml.gz"){
-	open F,"gzip -cd < $xmldir/$l-$pivot.xml.gz |" || 
-	    die "cannot open $xmldir/$l-$pivot.xml.gz";
+    if (-f "$xmldir/$l-$pivot$EXT"){
+	open F,"gzip -cd < $xmldir/$l-$pivot.$EXT |" || 
+	    die "cannot open $xmldir/$l-$pivot.$EXT";
     }
-    elsif (-f "$xmldir/$pivot-$l.xml.gz"){
-	open F,"gzip -cd < $xmldir/$pivot-$l.xml.gz |" || 
-	    die "cannot open $xmldir/$pivot-$l.xml.gz";
+    elsif (-f "$xmldir/$pivot-$l$EXT"){
+	open F,"gzip -cd < $xmldir/$pivot-$l.$EXT |" || 
+	    die "cannot open $xmldir/$pivot-$l.$EXT";
+	$fromEnglish = 1;
+    }
+    ## another option: files with extension .all.
+    elsif (-f "$xmldir/$l-$pivot.all.$EXT"){
+	open F,"gzip -cd < $xmldir/$l-$pivot.all.$EXT |" || 
+	    die "cannot open $xmldir/$l-$pivot.all.$EXT";
+    }
+    elsif (-f "$xmldir/$pivot-$l.all.$EXT"){
+	open F,"gzip -cd < $xmldir/$pivot-$l.all.$EXT |" || 
+	    die "cannot open $xmldir/$pivot-$l.all.$EXT";
 	$fromEnglish = 1;
     }
     else{
 	next;
     }
+    print "read links for $pivot-$l ...\n";
     my ($EnglishDoc,$ForeignDoc,$idx);
     while (<F>){
 
@@ -357,6 +370,10 @@ foreach my $d (sort keys %links){
 
     foreach my $l (@languages){
 	my $F = $fh{$l};
+	# if ($$docs{$d}{$l}=~/=>/){
+	#     print '';
+	# }
+	# print STDERR "todoc = $l/$$docs{$d}{$l}\n";
 	print $F "<linkGrp targType=\"s\" fromDoc=\"$pivot/$d\" ";
 	print $F "toDoc=\"$l/$$docs{$d}{$l}\">\n";
 	foreach my $s (0..$#segments){
@@ -480,11 +497,18 @@ sub get_common_docs{
     # my %movies = ();
 
     foreach my $l (@languages){
-	if (-f "$xmldir/$l-$pivot.xml.gz"){
-	    open F,"gzip -cd < $xmldir/$l-$pivot.xml.gz |" || die "cannot open $xmldir/$l-$pivot.xml.gz";
+	if (-f "$xmldir/$l-$pivot.$EXT"){
+	    open F,"gzip -cd < $xmldir/$l-$pivot.$EXT |" || die "cannot open $xmldir/$l-$pivot.$EXT";
 	}
-	elsif (-f "$xmldir/$pivot-$l.xml.gz"){
-	    open F,"gzip -cd < $xmldir/$pivot-$l.xml.gz |" || die "cannot open $xmldir/$pivot-$l.xml.gz";
+	elsif (-f "$xmldir/$pivot-$l.$EXT"){
+	    open F,"gzip -cd < $xmldir/$pivot-$l.$EXT |" || die "cannot open $xmldir/$pivot-$l.$EXT";
+	}
+	## check if there is a file with .all. instead
+	elsif (-f "$xmldir/$l-$pivot.all.$EXT"){
+	    open F,"gzip -cd < $xmldir/$l-$pivot.all.$EXT |" || die "cannot open $xmldir/$l-$pivot.all.$EXT";
+	}
+	elsif (-f "$xmldir/$pivot-$l.all.$EXT"){
+	    open F,"gzip -cd < $xmldir/$pivot-$l.all.$EXT |" || die "cannot open $xmldir/$pivot-$l.all.$EXT";
 	}
 	else{
 	    next;
@@ -510,7 +534,9 @@ sub get_common_docs{
 		if (not exists $$docs{$_}{$l}){
 		    my ($interdoc,$doc) = find_intermediate_file($docs,$_,$l);
 		    if ($interdoc){
-			$$docs{$interdoc}{$l} = "$doc => $_";
+			## TODO: why would we need this?
+			##       --> it creates a problem when printing toDoc
+			# $$docs{$interdoc}{$l} = "$doc => $_";
 			$$docs{$_}{$l} = $doc;
 		    }
 		    # elsif ($opt_v){

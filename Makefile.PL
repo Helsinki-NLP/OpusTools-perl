@@ -10,7 +10,7 @@ name          'OPUS-Tools';
 license       'gpl';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
-version       '0.2.1';
+version       '0.2.2';
 
 install_script 'scripts/opus-cat';
 install_script 'scripts/opus-read';
@@ -26,7 +26,10 @@ install_script 'scripts/admin/opusinfo-refresh';
 install_script 'scripts/admin/opusinfo-delete';
 install_script 'scripts/alignments/opus-pt2dic';
 install_script 'scripts/alignments/opus-pt2dice';
+install_script 'scripts/alignments/opus-merge-align';
+install_script 'scripts/alignments/opus-split-align';
 install_script 'scripts/convert/opus-iso639';
+
 
 requires 'Archive::Zip'     => 0;
 requires 'CGI'              => 0;

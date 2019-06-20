@@ -1,4 +1,7 @@
 
+
+- opus-split-align and opus-merge-align added
+
 * v0.2.1
 
 - fixed opus2multi error when using intralingual links

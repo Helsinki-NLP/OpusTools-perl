@@ -20,6 +20,9 @@ opus2moses - convert aligned plain text files into OPUS XML
  -s srclang ........ language ID of source language (2-letter code)
  -t srclang ........ language ID of target language (2-letter code)
  -z ................ compress output files (gzip)
+ -p size ........... split into parts of size p
+ -l file ........... link likelihood file (one line per alignment)
+ -d ................ distance instead of link likelihood
 
 =head1 DESCRIPTION
 
@@ -39,9 +42,9 @@ use Locale::Language;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_s $opt_t $opt_b $opt_z $opt_p);
+use vars qw($opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d);
 use Getopt::Std;
-getopts('s:t:b:zp:');
+getopts('ds:t:b:zp:l:');
 
 
 my $srcfile = shift(@ARGV);
@@ -79,6 +82,16 @@ if ($moses){
 }
 binmode(S,":encoding(utf-8)");
 binmode(T,":encoding(utf-8)");
+
+## file with link likelihoods
+if ($opt_l){
+    if ($opt_l=~/\.gz/){
+	open L,"gzip -cd <$opt_l |" || die "cannot read from $opt_l!\n";
+    }
+    else{
+	open L,"<$opt_l" || die "cannot read from $opt_l!\n";
+    }
+}
 
 
 ## print align file header
@@ -126,8 +139,15 @@ while (<S>){
     print join(' ',@SrcIds);
     print ';';
     print join(' ',@TrgIds);
-    print '" id="SL'.$lid.'"/>',"\n";
-
+    print '" id="SL'.$lid;
+    ## add certainty if likelihood file is given
+    if ($opt_l){
+	my $prob = <L>;
+	chomp $prob;
+	$prob = 1-$prob if ($opt_d);
+	print '" certainty="'.$prob;
+    }
+    print '"/>',"\n";
     print STDERR '.' if (! ($lid % 1000));
     print STDERR " $lid\n" if (! ($lid % 50000));
 

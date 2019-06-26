@@ -23,6 +23,8 @@ opus2moses - convert aligned plain text files into OPUS XML
  -p size ........... split into parts of size p
  -l file ........... link likelihood file (one line per alignment)
  -d ................ distance instead of link likelihood
+ -D ................ document boundaries by empty lines
+ -M size ........... minimum size of a document (by nr of sentences)
 
 =head1 DESCRIPTION
 
@@ -42,9 +44,9 @@ use Locale::Language;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d);
+use vars qw($opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M);
 use Getopt::Std;
-getopts('ds:t:b:zp:l:');
+getopts('dDs:t:b:zp:l:M:');
 
 
 my $srcfile = shift(@ARGV);
@@ -62,7 +64,7 @@ unless ($opt_b){
     $filebase=~s/\..{2,4}$//;
 }
 
-my $part = 1;
+my $part = $maxsize || $opt_D ? 1 : 0;
 
 
 ## open input files
@@ -100,7 +102,7 @@ print '<?xml version="1.0" encoding="utf-8"?>
 <cesAlign version="1.0">
 ';
 
-my ($SrcWriter,$TrgWriter) = open_output($filebase,$srclang,$trglang,$part,$maxsize);
+my ($SrcWriter,$TrgWriter) = open_output($filebase,$srclang,$trglang,$part);
 
 
 ## create sentence splitters
@@ -115,7 +117,6 @@ my $lid = 0;
 while (<S>){
     chomp;
 
-    $sid++;
     my $src = $_;
     my $trg;
 
@@ -127,6 +128,31 @@ while (<S>){
 	($src,$trg) = split(/ \|\|\| /,$src);
     }
 
+    ## document boundary? add a new paragraph or a new document
+    if ($src eq '' && $trg eq ''){
+	if ($opt_D){
+	    ## if smaller than minimum size of a document
+	    ## ---> concatenate and don't create a new one
+	    if ($opt_M && $sid < $opt_M){
+		$SrcWriter->emptyTag('p');
+		$TrgWriter->emptyTag('p');
+	    }
+	    else{
+		$sid = 0;
+		$part++;
+		close_output($SrcWriter,$TrgWriter);
+		($SrcWriter,$TrgWriter) = 
+		    open_output($filebase,$srclang,$trglang,$part);
+	    }
+	}
+	else{
+	    $SrcWriter->emptyTag('p');
+	    $TrgWriter->emptyTag('p');
+	}
+	next;
+    }
+
+    $sid++;
     my @SrcSents = $SrcSplitter->split_array($src);
     my @TrgSents = $TrgSplitter->split_array($trg);
 
@@ -156,7 +182,7 @@ while (<S>){
 	$part++;
 	close_output($SrcWriter,$TrgWriter);
 	($SrcWriter,$TrgWriter) = 
-	    open_output($filebase,$srclang,$trglang,$part,$maxsize);
+	    open_output($filebase,$srclang,$trglang,$part);
     }
 
 }
@@ -167,11 +193,11 @@ print "</cesAlign>\n";
 
 
 sub open_output{
-    my ($filebase,$srclang,$trglang,$part,$maxsize) = @_;
+    my ($filebase,$srclang,$trglang,$part) = @_;
     my ($srcxml,$trgxml);
 
     ## split into parts
-    if ($maxsize){
+    if ($part){
 	my $ext = sprintf('%04d',$part);
 	$srcxml = $srclang.'/'.$filebase.'.'.$ext.'.xml';
 	$trgxml = $trglang.'/'.$filebase.'.'.$ext.'.xml';

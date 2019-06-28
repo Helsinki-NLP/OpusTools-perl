@@ -153,6 +153,14 @@ while (<S>){
     }
 
     $sid++;
+    if ($maxsize && $sid>$maxsize){
+	$sid = 0;
+	$part++;
+	close_output($SrcWriter,$TrgWriter);
+	($SrcWriter,$TrgWriter) = 
+	    open_output($filebase,$srclang,$trglang,$part);
+    }
+
     my @SrcSents = $SrcSplitter->split_array($src);
     my @TrgSents = $TrgSplitter->split_array($trg);
 
@@ -176,15 +184,6 @@ while (<S>){
     print '"/>',"\n";
     print STDERR '.' if (! ($lid % 1000));
     print STDERR " $lid\n" if (! ($lid % 50000));
-
-    if ($maxsize && $sid>=$maxsize){
-	$sid = 0;
-	$part++;
-	close_output($SrcWriter,$TrgWriter);
-	($SrcWriter,$TrgWriter) = 
-	    open_output($filebase,$srclang,$trglang,$part);
-    }
-
 }
 
 close_output($SrcWriter,$TrgWriter);

@@ -1,0 +1,256 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+tmx2opus - convert TMX into OPUS XML
+
+=head1 USAGE
+
+
+=head1 OPTIONS
+
+=head1 DESCRIPTION
+
+C<tmx2opus> ...  It also does sentence-splitting based on Lingua::Sentence
+
+=cut
+
+
+use strict;
+use FindBin qw($Bin);
+use lib $Bin.'/../lib';
+
+use IO::File;
+use File::Basename qw/dirname basename/;
+use XML::Parser;
+use XML::Writer;
+use Lingua::Sentence;
+
+use vars qw($opt_o);
+use Getopt::Std;
+getopts('o:');
+
+my $outfile = $opt_o || @ARGV[0] || 'text.xml.gz';
+
+my %LangSeg = ();
+my $CurrentLang = 'en';
+
+my %SentID = ();
+my %LinkID = ();
+my %SentID = ();
+
+my %CorpusWriter = ();
+my %BitextWriter = ();
+
+my %TextSplitter = ();
+
+
+my $TMXParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
+					     End => \&XmlTagEnd,
+					     Char => \&XmlChar});
+my $TMXHandler = $TMXParser->parse_start;
+
+
+my $count = 0;
+binmode(STDIN);
+while (<>){
+    eval { $TMXHandler->parse_more($_); };
+    if ($@){
+	print STDERR $_;
+	die $@;
+    }
+}
+
+
+foreach my $c (keys %CorpusWriter){
+    close_corpus($c);
+}
+foreach my $c (keys %BitextWriter){
+    close_bitext($c);
+}
+
+
+
+
+
+
+sub XmlTagStart{
+    my ($p,$e,%a)=@_;
+
+    if ($e eq 'tuv'){
+	$CurrentLang = $a{'xml:lang'} if (exists $a{'xml:lang'});
+	$CurrentLang = $a{'lang'} if (exists $a{'lang'});
+	$LangSeg{$CurrentLang} = [];
+    }
+    elsif ($e eq 'seg'){
+	$p->{OPEN_SEG} = 1;
+	push(@{$LangSeg{$CurrentLang}},'');
+    }
+}
+
+sub XmlTagEnd{
+    my ($p,$e)=@_;
+
+    if ($e eq 'tu'){
+	## print the translations collected in segments
+	print_alignments(\%LangSeg);
+	%LangSeg = ();
+    }
+    elsif ($e eq 'seg'){
+	$p->{OPEN_SEG} = 0;
+    }
+}
+
+sub XmlChar{
+    my ($p,$c)=@_;
+    if ($p->{OPEN_SEG}){
+	$LangSeg{$CurrentLang}[-1] .= $c;
+    }
+}
+
+
+sub print_alignments{
+    my $seg = shift;
+
+    return unless (ref($seg) eq 'HASH');
+    my @langs = sort keys %{$seg};
+    return unless ($#langs);
+
+    my %IDs = {};
+    foreach my $s (0..$#langs){
+	@{$IDs{$langs[$s]}} = print_sentences($seg,$langs[$s]);
+    }
+
+    foreach my $s (0..$#langs-1){
+	foreach my $t ($s+1..$#langs){
+	    print_links($IDs{$langs[$s]},$IDs{$langs[$t]},$langs[$s],$langs[$t]);
+	}
+    }
+
+    $count++;
+    print STDERR '.' if (! ($count % 1000));
+    print STDERR " $count\n" if (! ($count % 50000));
+
+
+}
+
+sub print_links{
+    my ($SrcIDs,$TrgIDs,$SrcLang,$TrgLang) = @_;
+
+    my $LangPair = "$SrcLang-$TrgLang";
+    $BitextWriter{$LangPair} = open_bitext($outfile,$SrcLang,$TrgLang) 
+	unless ($BitextWriter{$LangPair});
+    $LinkID{$LangPair}++;
+    my $link = join(' ',@{$SrcIDs}).';'.join(' ',@{$TrgIDs});
+    $BitextWriter{$LangPair}->emptyTag('link',
+				       'id' => 'L'.$LinkID{$LangPair},
+				       'xtargets' => $link );
+}
+
+sub print_sentences{
+    my ($segments,$lang) = @_;
+    $CorpusWriter{$lang} = open_corpus($outfile,$lang) 
+	unless ($CorpusWriter{$lang});
+
+    my @ids = ();
+    my @sentences = get_sentences($segments->{$lang},$lang);
+    
+    $CorpusWriter{$lang}->startTag('p') if ($#sentences);
+    foreach my $sent (@sentences){
+	$SentID{$lang}++;
+	$CorpusWriter{$lang}->startTag('s', 'id' => $SentID{$lang});
+	$CorpusWriter{$lang}->characters($sent);
+	$CorpusWriter{$lang}->endTag('s');
+	push(@ids,$SentID{$lang});
+    }
+    $CorpusWriter{$lang}->endTag('p') if ($#sentences);
+    return @ids;
+}
+
+
+sub get_sentences{
+    my $segments = shift;
+    my $lang = shift;
+
+    my @sentences = ();
+    foreach my $seg (@{$segments}){
+	if ($seg=~/\S/){
+	    $seg =~s/\n/ /gs;
+	    $seg =~s/\s{2,}/ /g;
+	    push(@sentences,$TextSplitter{$lang}->split_array($seg));
+	}
+    }
+    return @sentences;
+}
+
+
+
+sub open_file{
+    my $file = shift;
+
+    ## make sub dir if necessary
+    my $dir = dirname($file);
+    system("mkdir -p ".$dir) unless (-d $dir);
+
+    ## open pipe to gzip if necessary
+    return $file=~/\.gz$/ ?
+	IO::File->new("| gzip -c > $file") :
+	IO::File->new(">$file");
+}
+
+sub open_corpus{
+    my $file = shift;
+    my $lang = shift;
+
+    my $fh = open_file($lang.'/'.$file);
+    binmode($fh,":encoding(utf-8)");
+    my $XmlWriter = XML::Writer->new( OUTPUT => $fh,
+				      DATA_MODE => 1,
+				      DATA_INDENT => 1 );
+    $XmlWriter->xmlDecl("UTF-8");
+    $XmlWriter->startTag("text");
+
+    ## Lingua::Sentences requires 2-letter language codes
+    my $isolang = $lang;
+    $isolang =~s/[-_].+$//;
+    $isolang = 'en' unless ($isolang =~ /^[a-z][a-z]$/i);
+
+    $TextSplitter{$lang} = Lingua::Sentence->new($isolang) unless $TextSplitter{$lang};
+
+    return $XmlWriter;
+}
+
+sub open_bitext{
+    my $file = shift;
+    my $srclang = shift;
+    my $trglang = shift;
+
+    my $fh = open_file($srclang.'-'.$trglang.'/'.$file);
+    my $XmlWriter = XML::Writer->new( OUTPUT => $fh,
+				      DATA_MODE => 1,
+				      DATA_INDENT => 1 );
+    $XmlWriter->xmlDecl("UTF-8");
+    $XmlWriter->doctype('cesAlign', "-//CES//DTD XML cesAlign//EN", "");
+    $XmlWriter->startTag('cesAlign','version' => '1.0');
+    $XmlWriter->startTag('linkGrp',
+			 'targType' => 's',
+			 'fromDoc'  => $srclang.'/'.$file,
+			 'toDoc'    => $trglang.'/'.$file);
+    return $XmlWriter;
+}
+
+
+sub close_corpus{
+    my $XmlWriter = shift;
+    $XmlWriter->endTag('text');
+}
+
+sub close_bitext{
+    my $XmlWriter = shift;
+    $XmlWriter->endTag('linkGrp');
+    $XmlWriter->endTag('cesAlign');
+}
+
+

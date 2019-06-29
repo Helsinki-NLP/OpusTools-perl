@@ -64,10 +64,10 @@ while (<>){
 }
 
 
-foreach my $c (keys %CorpusWriter){
+foreach my $c (values %CorpusWriter){
     close_corpus($c);
 }
-foreach my $c (keys %BitextWriter){
+foreach my $c (values %BitextWriter){
     close_bitext($c);
 }
 

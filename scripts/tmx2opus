@@ -82,7 +82,14 @@ sub XmlTagStart{
     if ($e eq 'tuv'){
 	$CurrentLang = $a{'xml:lang'} if (exists $a{'xml:lang'});
 	$CurrentLang = $a{'lang'} if (exists $a{'lang'});
+
+	## replace hyphens with underscores
+	## lowercase the language IDs
+	## remove regional identifier if it is a copy of the lang ID
 	$CurrentLang=~s/\-/\_/g;
+	$CurrentLang=lc($CurrentLang);
+	$CurrentLang=~s/^(.*)\_\1/$1/g;
+
 	$LangSeg{$CurrentLang} = [];
     }
     elsif ($e eq 'seg'){

@@ -82,6 +82,7 @@ sub XmlTagStart{
     if ($e eq 'tuv'){
 	$CurrentLang = $a{'xml:lang'} if (exists $a{'xml:lang'});
 	$CurrentLang = $a{'lang'} if (exists $a{'lang'});
+	$CurrentLang=~s/\-/\_/g;
 	$LangSeg{$CurrentLang} = [];
     }
     elsif ($e eq 'seg'){

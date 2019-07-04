@@ -11,6 +11,9 @@ tmx2opus - convert TMX into OPUS XML
 
 =head1 OPTIONS
 
+  -o outfile ........ name of the output file
+  -r ................ always remove regional codes
+
 =head1 DESCRIPTION
 
 C<tmx2opus> ...  It also does sentence-splitting based on Lingua::Sentence
@@ -28,9 +31,9 @@ use XML::Parser;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_o);
+use vars qw($opt_o $opt_r);
 use Getopt::Std;
-getopts('o:');
+getopts('o:r');
 
 my $outfile = $opt_o || @ARGV[0] || 'text.xml.gz';
 
@@ -87,8 +90,15 @@ sub XmlTagStart{
 	## lowercase the language IDs
 	## remove regional identifier if it is a copy of the lang ID
 	$CurrentLang=~s/\-/\_/g;
-	$CurrentLang=lc($CurrentLang);
-	$CurrentLang=~s/^(.*)\_\1/$1/g;
+	$CurrentLang=lc($CurrentLang);   # lower-case
+	$CurrentLang=~s/^(.*)\_\1$/$1/g; # remove copies of lang ID
+	# $CurrentLang=~s/\_[^a-z]$//g;    # remove non-alphabetic extension
+
+	## always remove regional extension if -r
+	$CurrentLang=~s/^(.*)\_.*$/$1/g if ($opt_r);
+	if ($CurrentLang=~/en/){
+	    print '';
+	}
 
 	$LangSeg{$CurrentLang} = [];
     }

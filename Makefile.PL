@@ -19,6 +19,7 @@ install_script 'scripts/opus-udpipe';
 install_script 'scripts/opus2moses';
 install_script 'scripts/moses2opus';
 install_script 'scripts/tmx2opus';
+install_script 'scripts/tmx2moses';
 install_script 'scripts/opus2multi';
 install_script 'scripts/admin/opus-make-website';
 install_script 'scripts/admin/opus-website';

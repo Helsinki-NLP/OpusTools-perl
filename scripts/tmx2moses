@@ -8,6 +8,7 @@ tmx2moses - convert TMX into Moses plain text
 
 =head1 USAGE
 
+ tmx2moses [-r] [-o outfile-base] tmxfile
 
 =head1 OPTIONS
 
@@ -15,6 +16,8 @@ tmx2moses - convert TMX into Moses plain text
   -r ................ always remove regional codes
 
 =head1 DESCRIPTION
+
+C<tmx2opus> converts TMX files into OPUS format. It handles translation units with several languages. Regional codes can be removed from the language attribute.
 
 =cut
 

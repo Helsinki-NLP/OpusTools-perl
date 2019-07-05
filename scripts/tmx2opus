@@ -8,15 +8,16 @@ tmx2opus - convert TMX into OPUS XML
 
 =head1 USAGE
 
+  tmx2opus [-r] [-o outfile] tmxfile
 
 =head1 OPTIONS
 
-  -o outfile ........ name of the output file
+  -o outfile ........ name of the output file (default = tmxfile)
   -r ................ always remove regional codes
 
 =head1 DESCRIPTION
 
-C<tmx2opus> ...  It also does sentence-splitting based on Lingua::Sentence
+C<tmx2opus> converts TMX files into OPUS format. It handles translation units with several languages and it also does sentence-splitting based on Lingua::Sentence. Regional codes can be removed from the language attribute. If the C<outfile> has the extension C<.gz> then it will write to compressed files (corpus files and XCES link files)
 
 =cut
 

@@ -25,6 +25,7 @@ opus2moses
  -e src-data-file ...... output file for source language data (default = src)
  -f src-data-file ...... output file for target language data (default = trg)
 
+ -b xces-align-file .... print extracted pairs to am XCES ALIGN file
  -p sentence-pair-file . stores sentence ID pairs of the extracted pairs
  -l .................... convert to lower case
  -1 .................... 1:1 links only
@@ -72,10 +73,10 @@ use FileHandle;
 use File::Basename;
 
 
-use vars qw($opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m $opt_M $opt_S);
+use vars qw($opt_b $opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m $opt_M $opt_S);
 use Getopt::Std;
 
-getopts('s:t:d:n:ie:f:hp:l1x:rmMS');
+getopts('b:s:t:d:n:ie:f:hp:l1x:rmMS');
 
 ## -M is now on by default! -S can switch it off
 ## Why? sequential reading is not very reliable
@@ -106,6 +107,7 @@ if ($opt_h){
  -x max ................ maximum size of selected sentences (default=100)
  -r .................... process untokenized (raw) XML (no length filtering)
  -S .................... read sentences sequentially (requires monotonic links)
+ -b xces-align-file .... print extracted pairs to am XCES ALIGN file
 
 EOH
     exit;
@@ -157,6 +159,14 @@ unless ($opt_m){
 if ($opt_p){
     open P,">$opt_p" || warn "cannot open $opt_p ...\n";
 }
+my $openLinkGrp=0;
+if ($opt_b){
+    open B,">$opt_b" || warn "cannot open $opt_b ...\n";
+    print B '<?xml version="1.0" encoding="utf-8"?>'."\n";
+    print B '<!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">'."\n";
+    print B '<cesAlign version="1.0">'."\n";
+}
+
 
 
 my $ALIGNHOME = '.';
@@ -186,6 +196,12 @@ $TRGOUT->close();
 if ($opt_p){
     close P;
 }
+if ($opt_b){
+    print B "  </linkGrp>\n" if ($openLinkGrp);
+    print B "</cesAlign>\n" if ($openLinkGrp);
+    close B;
+}
+
 
 
 ## finished!
@@ -376,6 +392,11 @@ sub AlignTagStart{
 	if ($opt_p){
 	    print P "## $a{fromDoc}\t$a{toDoc}\n";
 	}
+	if ($opt_b){
+	    print B "  </linkGrp>\n" if ($openLinkGrp);
+	    print B "  <linkGrp targType=\"s\" fromDoc=\"$a{fromDoc}\" toDoc=\"$a{toDoc}\">\n";
+	    $openLinkGrp=1;
+	}
 	my $success = &OpenCorpora($a{fromDoc},$a{toDoc});
 
 	## optional: parse the whole source and target documents
@@ -484,6 +505,9 @@ sub AlignTagStart{
 
 		if ($opt_p){
 		    print P "$src\t$trg\n";
+		}
+		if ($opt_b){
+		    print B "    <link xtargets=\"$src;$trg\" />\n";
 		}
 	    }
 	}

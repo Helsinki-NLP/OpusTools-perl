@@ -1,7 +1,8 @@
 
 
 - opus-split-align and opus-merge-align added
-- tmx2opus added
+- tmx2opus and tmx2moses added
+- new option to store XCES Align files in opus2moses
 
 * v0.2.1
 

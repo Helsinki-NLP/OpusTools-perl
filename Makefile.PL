@@ -16,22 +16,26 @@ install_script 'scripts/opus-cat';
 install_script 'scripts/opus-read';
 install_script 'scripts/opus-index';
 install_script 'scripts/opus-udpipe';
-install_script 'scripts/opus2moses';
-install_script 'scripts/moses2opus';
-install_script 'scripts/tmx2opus';
-install_script 'scripts/tmx2moses';
-install_script 'scripts/opus2multi';
+
 install_script 'scripts/admin/opus-make-website';
 install_script 'scripts/admin/opus-website';
 install_script 'scripts/admin/opusinfo-set';
 install_script 'scripts/admin/opusinfo-refresh';
 install_script 'scripts/admin/opusinfo-delete';
+
 install_script 'scripts/alignments/opus-pt2dic';
 install_script 'scripts/alignments/opus-pt2dice';
 install_script 'scripts/alignments/opus-merge-align';
 install_script 'scripts/alignments/opus-split-align';
 install_script 'scripts/alignments/opus-swap-align';
+
 install_script 'scripts/convert/opus-iso639';
+install_script 'scripts/convert/opus2text';
+install_script 'scripts/convert/opus2moses';
+install_script 'scripts/convert/moses2opus';
+install_script 'scripts/convert/tmx2opus';
+install_script 'scripts/convert/tmx2moses';
+install_script 'scripts/convert/opus2multi';
 
 
 requires 'Archive::Zip'     => 0;

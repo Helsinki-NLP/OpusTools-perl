@@ -69,33 +69,36 @@ print STDIN "$ErrorCount errors found!" if ($ErrorCount);
 sub XmlTagStart{
     my ($p,$e,%a)=@_;
     if ($e eq 'w'){
-	$p->{WORD} = '';
+	$p->{STRING} = '';
+	$p->{TOKENIZED} = 1;
     }
     elsif ($e eq 's'){
-	@{$p->{WORDS}}=();
+	@{$p->{WORDS}}=() if ($p->{TOKENIZED});
+	$p->{STRING} = '';
     }
 }
 
 sub XmlChar{
     my ($p,$c)=@_;
-    if (exists $p->{WORD}){
-	$p->{WORD}.=$c;
+    if (exists $p->{STRING}){
+	$p->{STRING}.=$c;
     }
 }
 
 sub XmlTagEnd{
     my ($p,$e)=@_;
     if ($e eq 'w'){
-	push (@{$p->{WORDS}},$p->{WORD}) if (exists $p->{WORD});
-	delete $p->{WORD};
+	push (@{$p->{WORDS}},$p->{STRING}) if (exists $p->{STRING});
+	delete $p->{STRING};
     }
     elsif ($e eq 's'){
 	if (@{$p->{WORDS}}){
-	    my $sent = join(' ',@{$p->{WORDS}});
-	    $sent=~s/  */ /g;
-	    $sent=~s/^ *//;
-	    $sent=~s/ *$$//
-	    print $sent,"\n";
+	    $p->{STRING} = join(' ',@{$p->{WORDS}});
 	}
+	$p->{STRING}=~s/^\s+//;
+	$p->{STRING}=~s/\s+$//;
+	$p->{STRING}=~s/\s{2,}/ /gs;
+	print $p->{STRING},"\n" if ($p->{STRING});
+	delete $p->{STRING};
     }
 }

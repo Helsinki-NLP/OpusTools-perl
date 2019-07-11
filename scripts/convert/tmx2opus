@@ -8,11 +8,13 @@ tmx2opus - convert TMX into OPUS XML
 
 =head1 USAGE
 
-  tmx2opus [-r] [-o outfile] tmxfile
+  tmx2opus [-r] [-p size] [-o outfile] tmxfile
 
 =head1 OPTIONS
 
   -o outfile ........ name of the output file (default = tmxfile)
+  -p size ........... new files after <size> translation units
+  -P ................ do NOT change some property names from ParaCrawl TMX
   -r ................ always remove regional codes
 
 =head1 DESCRIPTION
@@ -32,22 +34,32 @@ use XML::Parser;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_o $opt_r);
+use vars qw($opt_o $opt_p $opt_P $opt_r);
 use Getopt::Std;
-getopts('o:r');
+getopts('o:p:Pr');
+
 
 my $outfile = $opt_o || @ARGV[0] || 'text.xml.gz';
+
+my $maxsize = $opt_p;          # split into parts of size <p>
+my $part    = $maxsize ? 1 : 0;
+
+## partial files
+if ($part){
+    my $ext  = sprintf('%04d',$part);
+    $outfile =~s/(\.xml)(\.gz)?$/.$ext$1$2/
+}
+
 
 my %LangSeg = ();
 my $CurrentLang = 'en';
 
 my %SentID = ();
 my %LinkID = ();
-my %SentID = ();
+my %LinkProp = ();
 
 my %CorpusWriter = ();
 my %BitextWriter = ();
-
 my %TextSplitter = ();
 
 
@@ -67,12 +79,23 @@ while (<>){
     }
 }
 
+&close_corpora();
+&close_bitexts();
 
-foreach my $c (values %CorpusWriter){
-    close_corpus($c);
+
+
+sub close_corpora{
+    foreach my $c (values %CorpusWriter){
+	close_corpus($c);
+    }
+    %CorpusWriter = ();
 }
-foreach my $c (values %BitextWriter){
-    close_bitext($c);
+
+sub close_bitexts{
+    foreach my $c (values %BitextWriter){
+	close_bitext($c);
+    }
+    %BitextWriter = ();
 }
 
 
@@ -97,15 +120,18 @@ sub XmlTagStart{
 
 	## always remove regional extension if -r
 	$CurrentLang=~s/^(.*)\_.*$/$1/g if ($opt_r);
-	if ($CurrentLang=~/en/){
-	    print '';
-	}
 
 	$LangSeg{$CurrentLang} = [];
     }
     elsif ($e eq 'seg'){
 	$p->{OPEN_SEG} = 1;
 	push(@{$LangSeg{$CurrentLang}},'');
+    }
+    elsif ($e eq 'prop'){
+	## skip source document properties from ParaCrawl!
+	if ( $opt_P || $a{type} ne 'source-document' ){
+	    $p->{OPEN_PROP} = $a{type};
+	}
     }
 }
 
@@ -116,9 +142,17 @@ sub XmlTagEnd{
 	## print the translations collected in segments
 	print_alignments(\%LangSeg);
 	%LangSeg = ();
+	%LinkProp = ();
     }
     elsif ($e eq 'seg'){
 	$p->{OPEN_SEG} = 0;
+    }
+    elsif ($e eq 'prop'){
+	## fix type to standard in xces align
+	if ( (! $opt_P) && $p->{OPEN_PROP} eq 'type' ){
+	    $LinkProp{$p->{OPEN_PROP}}=~s/\:/\-/;
+	}
+	$p->{OPEN_PROP} = undef;
     }
 }
 
@@ -126,6 +160,11 @@ sub XmlChar{
     my ($p,$c)=@_;
     if ($p->{OPEN_SEG}){
 	$LangSeg{$CurrentLang}[-1] .= $c;
+    }
+    elsif ($p->{OPEN_PROP}){
+	$LinkProp{$p->{OPEN_PROP}} .= ';' 
+	    if ($LinkProp{$p->{OPEN_PROP}});
+	$LinkProp{$p->{OPEN_PROP}} .= $c;
     }
 }
 
@@ -136,6 +175,18 @@ sub print_alignments{
     return unless (ref($seg) eq 'HASH');
     my @langs = sort keys %{$seg};
     return unless ($#langs);
+
+    ## in case we want to split the data
+    ## close and reopen data files
+    if ($maxsize && $count>=$maxsize){
+	$count = 0;
+	$part++;
+	my $ext  = sprintf('%04d',$part);
+	$outfile =~s/\.[0-9]{4}(\.xml)(\.gz)?$/.$ext$1$2/
+	&close_corpora();
+	&close_bitexts();
+	%SentID = ();
+    }
 
     my %IDs = {};
     foreach my $s (0..$#langs){
@@ -163,9 +214,24 @@ sub print_links{
 	unless ($BitextWriter{$LangPair});
     $LinkID{$LangPair}++;
     my $link = join(' ',@{$SrcIDs}).';'.join(' ',@{$TrgIDs});
+
+    ## make some minor adjustments to link properties coming from ParaCrawl data
+    unless ($opt_P){
+	if (exists $LinkProp{'score-aligner'}){
+	    $LinkProp{'hunalign'} = $LinkProp{'score-aligner'};
+	    delete $LinkProp{'score-aligner'};
+	}
+	if (exists $LinkProp{'score-bicleaner'}){
+	    $LinkProp{'bicleaner'} = $LinkProp{'score-bicleaner'};
+	    delete $LinkProp{'score-bicleaner'};
+	}
+	delete $LinkProp{'lengthRatio'};
+    }
+
     $BitextWriter{$LangPair}->emptyTag('link',
 				       'id' => 'L'.$LinkID{$LangPair},
-				       'xtargets' => $link );
+				       'xtargets' => $link, 
+				       %LinkProp );
 }
 
 sub print_sentences{

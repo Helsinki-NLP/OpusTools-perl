@@ -183,6 +183,8 @@ $/='>';
 ##   as they appear in the sentence alignment file!
 
 while (<>){
+    ## fix un-escaped XML entities
+    s/&(?!(#\d+|\w+);)/&amp;/gs;
     eval { $BitextHandler->parse_more($_); };
     if ($@){
 	warn $@;

@@ -55,6 +55,10 @@ while (<>){
 						  Char => \&XmlChar});
 	$XmlHandler = $XmlParser->parse_start;
     }
+
+    s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g;     ## remove control characters
+    s/&(?!(#\d+|\w+);)/&amp;/g;            ## fix un-escaped XML entities
+
     eval { $XmlHandler->parse_more($_); };
     if ($@){
 	$ErrorCount++;

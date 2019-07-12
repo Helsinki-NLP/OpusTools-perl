@@ -52,6 +52,8 @@ my $TMXHandler = $TMXParser->parse_start;
 my $count = 0;
 binmode(STDIN);
 while (<>){
+    ## fix un-escaped XML entities
+    s/&(?!(#\d+|\w+);)/&amp;/g;
     eval { $TMXHandler->parse_more($_); };
     if ($@){
 	print STDERR $_;

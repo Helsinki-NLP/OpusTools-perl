@@ -47,6 +47,9 @@ binmode(STDOUT, ":utf8");
 
 my $ErrorCount=0;
 
+## use '>' as input delimiter when reading (usually end of XML tag)
+$/='>';
+
 while (<>){
     ## new document!
     if (/<\?xml/){

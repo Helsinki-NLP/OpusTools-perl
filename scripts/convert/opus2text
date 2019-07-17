@@ -53,6 +53,8 @@ $/='>';
 while (<>){
     ## new document!
     if (/<\?xml/){
+	## delete everything before the XML declaration
+	s/^.*(<\?xml)/$1/s;
 	$XmlParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
 						  End => \&XmlTagEnd,
 						  Char => \&XmlChar});

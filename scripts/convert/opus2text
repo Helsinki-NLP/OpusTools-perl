@@ -67,7 +67,7 @@ while (<>){
     }
 }
 
-print STDIN "$ErrorCount errors found!" if ($ErrorCount);
+print STDERR "$ErrorCount errors found!" if ($ErrorCount);
 
 
 sub XmlTagStart{

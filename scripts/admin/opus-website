@@ -508,9 +508,12 @@ sub LanguageStatistics{
 
     my ($nrFiles,$nrTokens,$nrSent)=(0,0,0);
 
+    my @path = split(/\/+/,$lang);
+    my $langID = $path[-1];
+
     # read info from file if it exists
-    if (-e "$INFODIR/$lang.info"){
-	open F,"<$INFODIR/$lang.info";
+    if (-e "$INFODIR/$langID.info"){
+	open F,"<$INFODIR/$langID.info";
 	$nrFiles = <F>;chomp $nrFiles;
 	$nrSent = <F>;chomp $nrSent;
 	$nrTokens = <F>;chomp $nrTokens;

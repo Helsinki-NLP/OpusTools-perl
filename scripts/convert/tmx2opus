@@ -8,7 +8,7 @@ tmx2opus - convert TMX into OPUS XML
 
 =head1 USAGE
 
-  tmx2opus [-r] [-p size] [-o outfile] tmxfile
+  tmx2opus [OPTIONS] [-o outfile] tmxfile
 
 =head1 OPTIONS
 
@@ -16,6 +16,9 @@ tmx2opus - convert TMX into OPUS XML
   -p size ........... new files after <size> translation units
   -P ................ do NOT change some property names from ParaCrawl TMX
   -r ................ always remove regional codes
+  -u ................ store unique sentences only
+  -d ................ use DB_File to store sentences when using -u
+  -v ................ verbose output
 
 =head1 DESCRIPTION
 
@@ -24,6 +27,7 @@ C<tmx2opus> converts TMX files into OPUS format. It handles translation units wi
 =cut
 
 
+use utf8;
 use strict;
 use FindBin qw($Bin);
 use lib $Bin.'/../lib';
@@ -34,12 +38,21 @@ use XML::Parser;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_o $opt_p $opt_P $opt_r);
+use File::Temp qw/ tempfile /;
+use DB_File;
+# use DBM_Filter;
+
+use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_u $opt_v);
 use Getopt::Std;
-getopts('o:p:Pr');
+getopts('do:p:Pruv');
 
 
 my $outfile = $opt_o || @ARGV[0] || 'text.xml.gz';
+
+if ($opt_u && $opt_p){
+    warn "Options -u and -p are not compatible! Value of -p is ignored!\n";
+    $opt_p = undef;
+}
 
 my $maxsize = $opt_p;          # split into parts of size <p>
 my $part    = $maxsize ? 1 : 0;
@@ -52,6 +65,7 @@ if ($part){
 
 
 my %LangSeg = ();
+my %LangDB = ();
 my $CurrentLang = 'en';
 
 my %SentID = ();
@@ -72,8 +86,21 @@ my $TMXHandler = $TMXParser->parse_start;
 my $count = 0;
 binmode(STDIN);
 while (<>){
+
     ## fix un-escaped XML entities
     s/&(?!(#\d+|\w+);)/&amp;/g;
+
+    ## make it possible to pipe more than one TMX file
+    ## delete everything before the XML declaration
+    if (/<\?xml/){
+	s/^.*(<\?xml)/$1/s;
+	print STDERR "\nparse TMX file\n" if ($opt_v);
+	$TMXParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
+						  End => \&XmlTagEnd,
+						  Char => \&XmlChar});
+	$TMXHandler = $TMXParser->parse_start;
+    }
+
     eval { $TMXHandler->parse_more($_); };
     if ($@){
 	print STDERR $_;
@@ -243,19 +270,59 @@ sub print_sentences{
 
     my @ids = ();
     my @sentences = get_sentences($segments->{$lang},$lang);
+    my $key;
     
-    $CorpusWriter{$lang}->startTag('p') if ($#sentences);
+    $CorpusWriter{$lang}->startTag('p') if ( $#sentences && (!$opt_u) );
     foreach my $sent (@sentences){
-	$SentID{$lang}++;
-	$CorpusWriter{$lang}->startTag('s', 'id' => $SentID{$lang});
-	$CorpusWriter{$lang}->characters($sent);
-	$CorpusWriter{$lang}->endTag('s');
-	push(@ids,$SentID{$lang});
+	my $sid = undef;
+	if ($opt_u){
+	    $key = $sent;
+	    utf8::encode($key) if ($opt_d);  # to make DB_FILE happy
+	    $sid = &find_sentence($key,$lang);
+	}
+	# if ($opt_v && $sid){
+	#     print STDERR "repeated sentence found (id = $sid)\n";
+	# }
+	unless ($sid){
+	    $SentID{$lang}++;
+	    $sid=$SentID{$lang};
+
+	    $CorpusWriter{$lang}->startTag('s', 'id' => $sid);
+	    $CorpusWriter{$lang}->characters($sent);
+	    $CorpusWriter{$lang}->endTag('s');
+
+	    $LangDB{$lang}{$key} = $sid if ($opt_u);
+	}
+	push(@ids,$sid);
     }
-    $CorpusWriter{$lang}->endTag('p') if ($#sentences);
+    $CorpusWriter{$lang}->endTag('p') if ($#sentences && (!$opt_u));
     return @ids;
 }
 
+
+## check whether the sentence is stored in our cache
+sub find_sentence{
+    my ($sent,$lang) = @_;
+
+    unless (exists $LangDB{$lang}){
+	%{$LangDB{$lang}} = ();
+	## create a new DB file if necessary
+	if ($opt_d){
+	    my ($fh, $filename) = tempfile();
+	    close $fh;
+	    tie %{$LangDB{$lang}}, "DB_File", $filename ;
+	    ## this does not seem to work
+	    ## from https://www.perl.com/pub/2012/06/perlunicook-unicode-text-in-dbm-files-the-easy-way.html/
+	    # my $dbobj = tie %{$LangDB{$lang}}, "DB_File", $filename ;
+	    # $dbobj->Filter_Value_Push("utf8");
+	    print STDERR "Sentence in language $lang stored in $filename\n" if ($opt_v);
+	}
+    }
+    if (exists $LangDB{$lang}{$sent}){
+	return $LangDB{$lang}{$sent};
+    }
+    return undef;
+}
 
 sub get_sentences{
     my $segments = shift;

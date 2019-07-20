@@ -158,7 +158,11 @@ sub XmlTagStart{
     }
     elsif ($e eq 'prop'){
 	## skip source document properties from ParaCrawl!
-	if ( $opt_P || $a{type} ne 'source-document' ){
+	if ($opt_P && $a{type}=~/^[a-zA-Z\-\_]*$/){
+	    $p->{OPEN_PROP} = $a{type};
+	}
+	# elsif ($a{type}=~/^(score[a-zA-Z\-\_]*|type|info)$/){
+	elsif ($a{type}=~/^(score[a-zA-Z\-\_]*|info)$/){
 	    $p->{OPEN_PROP} = $a{type};
 	}
     }
@@ -177,11 +181,18 @@ sub XmlTagEnd{
 	$p->{OPEN_SEG} = 0;
     }
     elsif ($e eq 'prop'){
-	## fix type to standard in xces align
-	if ( (! $opt_P) && $p->{OPEN_PROP} eq 'type' ){
-	    $LinkProp{$p->{OPEN_PROP}}=~s/\:/\-/;
+	if ($p->{OPEN_PROP}){
+	    if (exists $LinkProp{$p->{OPEN_PROP}}){
+		if ($LinkProp{$p->{OPEN_PROP}}!~/\S/){
+		    delete $LinkProp{$p->{OPEN_PROP}};
+		}
+		## fix type to standard in xces align
+		elsif ( (! $opt_P) && $p->{OPEN_PROP} eq 'type' ){
+		    $LinkProp{$p->{OPEN_PROP}}=~s/\:/\-/;
+		}
+	    }
+	    $p->{OPEN_PROP} = undef;
 	}
-	$p->{OPEN_PROP} = undef;
     }
 }
 
@@ -251,7 +262,7 @@ sub print_links{
 	    delete $LinkProp{'score-aligner'};
 	}
 	if (exists $LinkProp{'score-bicleaner'}){
-	    $LinkProp{'bicleaner'} = $LinkProp{'score-bicleaner'};
+	    $LinkProp{'score'} = $LinkProp{'score-bicleaner'};
 	    delete $LinkProp{'score-bicleaner'};
 	}
 	delete $LinkProp{'lengthRatio'};

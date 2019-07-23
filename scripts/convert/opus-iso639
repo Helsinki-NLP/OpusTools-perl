@@ -446,7 +446,7 @@ zu => 'zul'
 
 
 my %iso639three2english = (
-aar => "Afar ",
+aar => "Afar",
 abk => "Abkhazian",
 ace => "Achinese",
 ach => "Acoli",

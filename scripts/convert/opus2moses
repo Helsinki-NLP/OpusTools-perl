@@ -187,8 +187,8 @@ while (<>){
     s/&(?!(#\d+|\w+);)/&amp;/gs;
     eval { $BitextHandler->parse_more($_); };
     if ($@){
-	warn $@;
 	print STDERR $_;
+	die $@;
     }
 }
 

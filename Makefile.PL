@@ -36,6 +36,7 @@ install_script 'scripts/convert/moses2opus';
 install_script 'scripts/convert/tmx2opus';
 install_script 'scripts/convert/tmx2moses';
 install_script 'scripts/convert/opus2multi';
+install_script 'scripts/convert/xml2opus';
 
 
 requires 'Archive::Zip'     => 0;

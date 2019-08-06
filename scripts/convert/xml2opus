@@ -1,0 +1,120 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+xml2opus - convert XML files to OPUS (add sentence boundary markers)
+
+=head1 USAGE
+
+  xml2opus [OPTIONS] < input > output
+
+=head1 OPTIONS
+
+ -l langid ...... language code (used for sentence splitting)
+ -H tag ......... header tag (to be ignored when processing content)
+
+=head1 DESCRIPTION
+
+C<xml2opus> adds sentence boundaries to XML files within any of the XML tags.
+
+=cut
+
+
+use utf8;
+use strict;
+use FindBin qw($Bin);
+use lib $Bin.'/../lib';
+
+use XML::Parser;
+use XML::Writer;
+use Lingua::Sentence;
+
+use vars qw($opt_H $opt_l $opt_v);
+use Getopt::Std;
+getopts('H:l:v');
+
+my $lang = $opt_l || 'en';
+if ($lang!~/^[a-z]{2}$/){
+    print STDERR "unsupported language - fallback to English\n";
+    $lang = 'en';
+}
+
+
+my $XmlParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
+					     End => \&XmlTagEnd,
+					     Char => \&XmlChar});
+my $XmlHandler = $XmlParser->parse_start;
+
+my $XmlWriter = XML::Writer->new( DATA_MODE => 1,
+				  DATA_INDENT => 1 );
+$XmlWriter->xmlDecl("UTF-8");
+
+my $TextSplitter = Lingua::Sentence->new($lang);
+
+
+my $count = 0;
+binmode(STDIN);
+binmode(STDOUT,":utf8");
+
+while (<>){
+
+    ## fix un-escaped XML entities
+    s/&(?!(#\d+|\w+);)/&amp;/g;
+
+    eval { $XmlHandler->parse_more($_); };
+    if ($@){
+	print STDERR $_;
+	die $@;
+    }
+}
+
+
+
+
+## TODO: skip certain tags like <b> and <i>
+
+sub XmlTagStart{
+    my ($p,$e,%a)=@_;
+    $XmlWriter->startTag($e,%a);
+    $p->{TEXT} = '';
+    if (exists $a{id}){
+	$p->{ID} = $a{id};
+	$count = 0;
+    }
+    if ( $opt_H && $e eq $opt_H ){
+	$p->{HEADER} = 1;
+    }
+}
+
+sub XmlTagEnd{
+    my ($p,$e)=@_;
+    unless ($p->{HEADER}){
+	if ($p->{TEXT}=~/\S/){
+	    $p->{TEXT}=~s/^\s*//s;
+	    $p->{TEXT}=~s/\s*$//s;
+	    $p->{TEXT}=~s/^\s+/ /s;
+	    foreach ($TextSplitter->split_array($p->{TEXT})){
+		$count++;
+		my $sid = $p->{ID} ? $p->{ID}.'.'.$count : $count;
+		$XmlWriter->startTag( 's',id => $sid );
+		$XmlWriter->characters( $_ );
+		$XmlWriter->endTag( 's' );
+	    }
+	}
+    }
+    delete $p->{ID};
+    $p->{TEXT} = '';
+    if ( $opt_H && $e eq $opt_H ){
+	delete $p->{HEADER};
+    }
+
+    $XmlWriter->endTag($e);
+}
+
+sub XmlChar{
+    my ($p,$c)=@_;
+    $p->{TEXT} .= $c;
+}
+

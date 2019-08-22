@@ -23,8 +23,6 @@ C<tmx2opus> converts TMX files into OPUS format. It handles translation units wi
 
 
 use strict;
-use FindBin qw($Bin);
-use lib $Bin.'/../lib';
 
 use IO::File;
 use File::Basename qw/dirname basename/;

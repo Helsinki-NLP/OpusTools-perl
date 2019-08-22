@@ -35,7 +35,7 @@ C<moses2opus> converts a sentence-aligned corpus in plain text format (Moses for
 
 use strict;
 use FindBin qw($Bin);
-use lib $Bin.'/../lib';
+use lib $Bin.'/../../lib';
 
 use OPUS::Tools;
 use IO::File;

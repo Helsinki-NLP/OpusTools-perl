@@ -24,8 +24,6 @@ C<xml2opus> adds sentence boundaries to XML files within any of the XML tags.
 
 use utf8;
 use strict;
-use FindBin qw($Bin);
-use lib $Bin.'/../lib';
 
 use XML::Parser;
 use XML::Writer;

@@ -77,7 +77,10 @@ binmode(STDOUT,":encoding(utf-8)");
 my %bitexts;
 my %lang;
 
+print STDERR "find all bitexts in the corpus ...\n";
 &GetBitexts($xmldir,\%lang,\%bitexts);
+
+print STDERR "store info in DB ...\n";
 &store_info($CORPUS,$VERSION,\%lang,\%bitexts);
 
 my $header=&HtmlHeader();
@@ -90,8 +93,14 @@ print &h1($CORPUS);
 
 my %samples;
 my %parsesamples;
+
+print STDERR "make sample files ...\n";
 &MakeSampleFiles(\%lang,\%bitexts,\%samples,\%parsesamples);
+
+print STDERR "create download table ...\n";
 my $download=&DownloadTable(\%lang,\%bitexts,\%samples,\%parsesamples);
+
+print STDERR "compute/read corpus statistics ...\n";
 my ($total,$lang)=&Statistics(\%lang,\%bitexts);
 
 print &p().$total.&p();
@@ -137,8 +146,6 @@ print &HtmlEnd();
 
 #-------------------------------------------------------------------------
 # make short sample files
-# make MOSES plain text files (not aymore ....)
-# make TMX files (not anymore ...)
 #-------------------------------------------------------------------------
 
 sub MakeSampleFiles{
@@ -146,6 +153,8 @@ sub MakeSampleFiles{
     my $bitexts=shift;
     my $samples=shift;
     my $parsesamples=shift;
+
+    print STDERR " - parsed data samples\n";
     foreach (keys %{$lang}){
 	$$parsesamples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_parse_sample.html";
 	if (not -e $$parsesamples{$_}){
@@ -157,6 +166,8 @@ sub MakeSampleFiles{
 	    }
 	}
     }
+
+    print STDERR " - corpus file samples\n";
     foreach (keys %{$lang}){
 	$$samples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_sample.html";
 	if (not -e $$samples{$_}){
@@ -166,6 +177,8 @@ sub MakeSampleFiles{
 	    system "echo '</pre></body></html>' >> $$samples{$_}";
 	}
     }
+
+    print STDERR " - bitext samples\n";
     foreach (keys %{$bitexts}){
 	if (-e $$bitexts{$_}){
 	    $$samples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_sample.html";
@@ -771,72 +784,6 @@ sub store_info{
 	my ($src,$trg) = split(/\-/,$b);
 	set_corpus_info($corpus,$release,$src,$trg);
     }
-
-    ## old: manipulate database here
-
-    # tie my %LangNames,"DB_File",$HTMLHOME.'/LangNames.db';
-    # tie my %Corpora,"DB_File",$HTMLHOME.'/Corpora.db';
-    # tie my %LangPairs,"DB_File",$HTMLHOME.'/LangPairs.db';
-    # tie my %Bitexts,"DB_File",$HTMLHOME.'/Bitexts.db';
-    # tie my %Info,"DB_File",$HTMLHOME.'/Info.db';
-
-    # my %nrFiles=();
-    # my %nrSents=();
-    # my %nrTokens=();
-
-    # foreach my $l (keys %{$lang}){
-    # 	if (! exists $LangNames{$l}){
-    # 	    $LangNames{$l} = &iso639_ThreeToName(&iso639_TwoToThree($l));
-    # 	}
-    # 	my @corpora=split(/:/,$Corpora{$l});
-    # 	push(@corpora,$corpus) unless (grep { $_ eq $corpus } @corpora);
-    # 	$Corpora{$l}=join(":",sort @corpora) ;
-    # 	($nrFiles{$l},$nrSents{$l},$nrTokens{$l})
-    # 	    = &LanguageStatistics($$lang{$l},1);
-    # }
-    # foreach my $b (keys %{$bitexts}){
-    # 	my ($src,$trg) = split(/\-/,$b);
-    # 	my @trgs = split(/:/,$LangPairs{$src});
-    # 	push (@trgs,$trg) unless (grep { $_ eq $trg } @trgs);
-    # 	my @srcs = split(/:/,$LangPairs{$trg});
-    # 	push (@srcs,$src) unless (grep { $_ eq $src } @srcs);
-    # 	$LangPairs{$src}=join(':',sort @trgs);
-    # 	$LangPairs{$trg}=join(':',sort @srcs);
-    # 	my @corpora=split(/:/,$Bitexts{$b});
-    # 	push(@corpora,$corpus) unless (grep { $_ eq $corpus } @corpora);
-    # 	$Bitexts{$b}=join(":",sort @corpora) ;
-
-
-    # 	# database of resources!
-    # 	my @resources=();
-    # 	if (-e "$RELEASEDIR/moses/$src-$trg.txt.zip"){
-    # 	    my ($MosesLinks,$MosesSrc,$MosesTrg) 
-    # 		= &MosesStatistics($$bitexts{"$src-$trg"});
-    # 	    my $descr = 'moses=';
-    # 	    $descr .= join(':',("$RELEASEBASE/moses/$src-$trg.txt.zip",
-    # 				$MosesLinks,$MosesSrc,$MosesTrg));
-    # 	    push(@resources,$descr);
-    # 	}
-    # 	if (-e "$RELEASEDIR/tmx/$src-$trg.tmx.gz"){
-    # 	    my ($links,$SrcToken,$TrgToken) 
-    # 		= &TMXStatistics($$bitexts{"$src-$trg"});
-    # 	    my $descr = 'tmx=';
-    # 	    $descr .= join(':',("$RELEASEBASE/tmx/$src-$trg.tmx.gz",
-    # 				$links,$SrcToken,$TrgToken));
-    # 	    push(@resources,$descr);
-    # 	}
-    # 	if (-e "$RELEASEDIR/xml/$src-$trg.xml.gz"){
-    # 	    my ($nrFiles,$nrLinks,$nrSrc,$nrTrg) = 
-    # 		&CESStatistics($$bitexts{"$src-$trg"});
-    # 	    my $descr = 'xces=';
-    # 	    $descr .= join(':',("$RELEASEBASE/xml/$src-$trg.xml.gz",
-    # 				"$RELEASEBASE/xml/$src.zip",
-    # 				"$RELEASEBASE/xml/$trg.zip",
-    # 				$nrFiles,$nrLinks,$nrSrc,$nrTrg));
-    # 	    push(@resources,$descr);
-    # 	}
-    # 	$Info{"$corpus/$src-$trg"}=join("+",sort @resources) ;
-    # }
 }
 
 

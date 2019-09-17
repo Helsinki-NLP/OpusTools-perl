@@ -113,6 +113,9 @@ EOH
     exit;
 }
 
+binmode(STDOUT,":utf8");
+binmode(STDERR,":utf8");
+
 
 my $CORPUSHOME   = $opt_d || '.';
 my $SRCFACTORSTR = $opt_s || "word";

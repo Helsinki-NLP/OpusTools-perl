@@ -1,10 +1,6 @@
 #!/usr/bin/env perl
 #-*-perl-*-
 #
-#  attempt to combine -u and -p
-#  --> implementation not complete
-#  --> problem: sentences in TU's are found in different partitions
-
 
 =head1 NAME
 
@@ -57,13 +53,19 @@ if ($opt_u && $opt_p){
 }
 
 my $maxsize = $opt_p;          # split into parts of size <p>
-my $part    = $maxsize ? 1 : 0;
+my $part = $maxsize ? 1 : 0;
 
 ## partial files
 if ($part){
     my $ext  = sprintf('%04d',$part);
-    $outfile =~s/(\.xml)(\.gz)?$/.$ext$1$2/
+    $outfile =~s/(\.xml)(\.gz)?$/.$ext$1$2/;
 }
+
+## keeping track files used for each language
+## --> useful if we use -u and -p together
+my %outParts = ()
+my %outFiles = ()
+my %currentAlgGrp = ();
 
 
 my %LangSeg = ();
@@ -86,6 +88,8 @@ my $TMXHandler = $TMXParser->parse_start;
 
 
 my $count = 0;
+my %counts = ();
+
 binmode(STDIN);
 while (<>){
 
@@ -220,14 +224,27 @@ sub print_alignments{
 
     ## in case we want to split the data
     ## close and reopen data files
+
+    foreach my $l (0..$#langs){
+	if ($maxsize && $counts{$l}>=$maxsize){
+	    $counts{$l} = 0;
+	    $outParts{$l}++;
+	    my $ext  = sprintf('%04d',$outParts{$l});
+	    $outFiles{$l}=~s/\.[0-9]{4}(\.xml)(\.gz)?$/.$ext$1$2/;
+	    &close_corpus($CorpusWriter{$l});
+	    delete $CorpusWriter{$l};
+	    $SentID{$l} = 0;
+	}
+    }
+
+    ## this is for the bitexts
+    ## TODO: do we need individual alignment files?
     if ($maxsize && $count>=$maxsize){
 	$count = 0;
 	$part++;
 	my $ext  = sprintf('%04d',$part);
-	$outfile =~s/\.[0-9]{4}(\.xml)(\.gz)?$/.$ext$1$2/
-	&close_corpora();
+	$outfile =~s/\.[0-9]{4}(\.xml)(\.gz)?$/.$ext$1$2/;
 	&close_bitexts();
-	%SentID = ();
     }
 
     my %IDs = {};
@@ -252,7 +269,7 @@ sub print_links{
     my ($SrcIDs,$TrgIDs,$SrcLang,$TrgLang) = @_;
 
     my $LangPair = "$SrcLang-$TrgLang";
-    $BitextWriter{$LangPair} = open_bitext($outfile,$SrcLang,$TrgLang) 
+    $BitextWriter{$LangPair} = &open_bitext($outfile,$SrcLang,$TrgLang) 
 	unless ($BitextWriter{$LangPair});
     $LinkID{$LangPair}++;
     my $link = join(' ',@{$SrcIDs}).';'.join(' ',@{$TrgIDs});
@@ -278,7 +295,7 @@ sub print_links{
 
 sub print_sentences{
     my ($segments,$lang) = @_;
-    $CorpusWriter{$lang} = open_corpus($outfile,$lang) 
+    $CorpusWriter{$lang} = &open_corpus($outfile,$lang) 
 	unless ($CorpusWriter{$lang});
 
     my @ids = ();
@@ -304,11 +321,19 @@ sub print_sentences{
 	    $CorpusWriter{$lang}->characters($sent);
 	    $CorpusWriter{$lang}->endTag('s');
 
-	    $LangDB{$lang}{$key} = $sid if ($opt_u);
+	    if ($opt_u){
+		if ($opt_p){
+		    $LangDB{$lang}{$key} = $sid.' '.$outfiles{$lang};
+		} 
+		else{
+		    $LangDB{$lang}{$key} = $sid;
+		}
+	    }
 	}
 	push(@ids,$sid);
     }
     $CorpusWriter{$lang}->endTag('p') if ($#sentences && (!$opt_u));
+    $counts{$lang} += scalar @ids;
     return @ids;
 }
 
@@ -332,6 +357,11 @@ sub find_sentence{
 	}
     }
     if (exists $LangDB{$lang}{$sent}){
+	if ($opt_p){
+	    my ($sid,$fid) = split(/\s/,$LangDB{$lang}{$sent});
+	    ## TODO: re-open new linkGrp if necessary
+	    return $sid;
+	}
 	return $LangDB{$lang}{$sent};
     }
     return undef;
@@ -371,6 +401,11 @@ sub open_corpus{
     my $file = shift;
     my $lang = shift;
 
+    unless (exists $outFiles{$lang}){
+	my $ext  = sprintf('%04d',$outParts{$lang});
+	$outFiles{$lang}=~s/\.[0-9]{4}(\.xml)(\.gz)?$/.$ext$1$2/;
+    }
+
     my $fh = open_file($lang.'/'.$file);
     binmode($fh,":encoding(utf-8)");
     my $XmlWriter = XML::Writer->new( OUTPUT => $fh,
@@ -403,8 +438,8 @@ sub open_bitext{
     $XmlWriter->startTag('cesAlign','version' => '1.0');
     $XmlWriter->startTag('linkGrp',
 			 'targType' => 's',
-			 'fromDoc'  => $srclang.'/'.$file,
-			 'toDoc'    => $trglang.'/'.$file);
+			 'fromDoc'  => $srclang.'/'.$outFiles{$srclang},
+			 'toDoc'    => $trglang.'/'.$outFiles{$trglang});
     return $XmlWriter;
 }
 

@@ -2,6 +2,7 @@
 
 - opus-split-align and opus-merge-align added
 - tmx2opus and tmx2moses added
+- opus-pivoting added for pivoting between bitexts
 - new option to store XCES Align files in opus2moses
 - opus2text added; can handle tokenized and untokenized corpus files
 - xml2opus added (simple conversion from XML to XML with <s> tags

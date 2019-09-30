@@ -28,6 +28,7 @@ install_script 'scripts/alignments/opus-pt2dice';
 install_script 'scripts/alignments/opus-merge-align';
 install_script 'scripts/alignments/opus-split-align';
 install_script 'scripts/alignments/opus-swap-align';
+install_script 'scripts/alignments/opus-pivoting';
 
 install_script 'scripts/convert/opus-iso639';
 install_script 'scripts/convert/opus2text';

@@ -44,7 +44,7 @@ else{
     open(F,"<$algfile1") || die "cannot read from $algfile1";
 }
 
-print STDERR "read links from algfile1 ...\n";
+print STDERR "read links from $algfile1 ...\n";
 
 my %links1=();
 my $fromDoc = undef;
@@ -85,7 +85,7 @@ else{
 }
 
 
-print STDERR "read links from algfile2 ...\n";
+print STDERR "read links from $algfile2 ...\n";
 
 my $currentFromDoc = undef;
 my $currentToDoc = undef;

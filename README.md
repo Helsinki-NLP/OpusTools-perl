@@ -29,42 +29,42 @@ and for opus-udpipe:
 
 
 
-## Usage
+## Tools and their usage
 
 The package includes a number of tools that can be used on the command-line. 
 Tools for reading and processing data:
 
-* opus-read
-* opus-cat
-* opus-udpipe
+* **opus-read**: read and filter sentence aligned corpora
+* **opus-cat**: read files from zipped OPUS corpus file collections
+* **opus-udpipe**: parse OPUS corpora with UDPipe
 
 
 Tools related to alignment:
 
-* opus-merge-align
-* opus-pivoting                      
-* opus-pt2dic
-* opus-pt2dice                       
-* opus-split-align
-* opus-swap-align                    
+* **opus-merge-align**: merge sentence alignment files (delete duplicates)
+* **opus-pivoting**: create transitive sentence links via a pivot language
+* **opus-pt2dic**: extract a rough bilingual dictionary from SMT phrase-tables
+* **opus-pt2dice**: extract a bilingual dictionary with DICE scores
+* **opus-split-align**: get alignments per document from a sentence alignment file
+* **opus-swap-align**: swap the sentence alignment
 
 
 Conversion tools:
 
-* moses2opus                         
-* opus2moses                         
-* tmx2moses                          
-* tmx2opus
-* xml2opus
-* opus2text                          
-* opus2multi
-* opus-iso639
+* **moses2opus**: convert aligned plain text files to OPUS format
+* **opus2moses**: extract aligned plain text files from OPUS files
+* **tmx2moses**: convert TMX files into aligned plain text files
+* **tmx2opus**: convert TMX files into OPUS format
+* **xml2opus**: add sentence boundary markup to arbitrary XML files
+* **opus2text**: extract plain text from OPUS XML files
+* **opus2multi**: make a multiparallel corpus using a pivot language
+* **opus-iso639**: convert between ISO639 standards
 
 
 Admin tools:
 
-* opus-index
-* opus-make-website
+* **opus-index**: create CWB indeces from OPUS corpora
+* **opus-make-website**: generate corpus websites
 
 
 

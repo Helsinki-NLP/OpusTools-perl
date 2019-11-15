@@ -81,7 +81,8 @@ foreach (@ALT_OPUS_HOME){
 
 
 ## set OPUS release dir
-my @ALT_OPUS_NLPL = ( '/proj/nlpl/data/OPUS',      # taito
+my @ALT_OPUS_NLPL = ( '/projappl/nlpl/data/OPUS',  # puhti
+		      '/proj/nlpl/data/OPUS',      # taito
 		      '/projects/nlpl/data/OPUS',  # abel
                       $OPUS_HOME.'/releases');
 

@@ -1,6 +1,6 @@
-# opus-tools - the Perl package
+# OpusTools - the Perl package
 
-opus-tools is a collection of tools and scripts to manipulate parallel data collected in [OPUS](http://opus.nlpl.eu/). There are tools for reading, converting and processing the data in various ways. Note that there is also an alterantive Python package called [OpusTools](https://github.com/Helsinki-NLP/OpusTools) that provides similar functionalities but both of these packages do not cover the same kind of tasks even though there is some overlap.
+OpusTools-perl is a collection of tools and scripts to manipulate parallel data collected in [OPUS](http://opus.nlpl.eu/). There are tools for reading, converting and processing the data in various ways. Note that there is also an alterantive Python package called [OpusTools](https://github.com/Helsinki-NLP/OpusTools) that provides similar functionalities but both of these packages do not cover the same kind of tasks even though there is some overlap.
 
 ## Installing
 

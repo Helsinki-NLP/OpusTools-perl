@@ -3,10 +3,10 @@
 
 use strict;
 use DB_File;
-use vars qw($opt_s $opt_t $opt_d);
+use vars qw($opt_x $opt_s $opt_t $opt_d);
 use Getopt::Std;
 
-getopts('d:s:t:');
+getopts('d:s:t:x');
 
 my $SentAlignFile = shift(@ARGV);
 my $WordAlignFile = shift(@ARGV);
@@ -20,9 +20,35 @@ open W,"gzip -cd <$WordAlignFile |" || die "cannot read from $WordAlignFile";
 my %alg = ();
 my $first = 1;
 
+my ($sdoc,$tdoc,$sids,$tids);
+
 while (<S>){
     chomp;
-    my ($sdoc,$tdoc,$sids,$tids) = split(/\t/);
+
+    ## not XML format is still standard:
+    ## old style ID file with docIDs and sentIDs on TAB separated lines
+    unless ($opt_x){
+	if (/\<\?xml/){
+	    $opt_x = 1;
+	    next;
+	}
+	($sdoc,$tdoc,$sids,$tids) = split(/\t/);
+    }
+    ## new style: XML sentence alignment file
+    else{
+	if (/fromDoc=\"(.*?)\"/){
+	    $sdoc = $1;
+	}
+	if (/toDoc=\"(.*?)\"/){
+	    $tdoc = $1;
+	}
+	if (/xtargets=\"(.*?)\"/){
+	    ($sids,$tids) = split(/\;/,$1);
+	}
+	else{
+	    next;
+	}
+    }
 
     # set source and target language if not set
     # (use first element in file path)

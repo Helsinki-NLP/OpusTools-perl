@@ -29,6 +29,10 @@ opus2moses
  -p sentence-pair-file . stores sentence ID pairs of the extracted pairs
  -c threshold .......... link score threshold (default attribute = certainty)
  -C link-score-attr .... name of the attribute that stores the link score
+ -u src-langid ......... check source language ID (require langid markup)
+ -U src-langid-conf .... confidence threshold for source langid
+ -w trg-langid ......... check target language ID (require langid markup)
+ -W trg-langid-conf .... confidence threshold for target langid
  -l .................... convert to lower case
  -1 .................... 1:1 links only
  -x max ................ max size of sentences (in nr of words)
@@ -85,10 +89,12 @@ use FileHandle;
 use File::Basename;
 
 
-use vars qw($opt_b $opt_c $opt_C $opt_s $opt_t $opt_d $opt_n $opt_i $opt_e $opt_f $opt_h $opt_p $opt_l $opt_1 $opt_x $opt_r $opt_m $opt_M $opt_S);
+use vars qw($opt_1 $opt_b $opt_c $opt_C $opt_d $opt_e $opt_f $opt_h 
+            $opt_i $opt_l $opt_m $opt_M $opt_n $opt_p $opt_r 
+            $opt_s $opt_S $opt_t $opt_u $opt_U $opt_v $opt_w $opt_W $opt_x);
 use Getopt::Std;
 
-getopts('b:c:C:s:t:d:n:ie:f:hp:l1x:rmMS');
+getopts('b:c:C:s:t:d:n:ie:f:hp:l1x:u:U:vw:W:rmMS');
 
 ## -M is now on by default! -S can switch it off
 ## Why? sequential reading is not very reliable
@@ -117,6 +123,10 @@ if ($opt_h){
  -f src-data-file ...... output file for target language data (default = trg)
  -c threshold .......... link score threshold (default attribute = certainty)
  -C link-score-attr .... name of the attribute that stores the link score
+ -u src-langid ......... check source language ID (require langid markup)
+ -U src-langid-conf .... confidence threshold for source langid
+ -w trg-langid ......... check target language ID (require langid markup)
+ -W trg-langid-conf .... confidence threshold for target langid
  -1 .................... extract 1:1 sentence alignments only
  -x max ................ maximum size of selected sentences (default=100)
  -r .................... process untokenized (raw) XML (no length filtering)
@@ -306,12 +316,16 @@ sub OpenCorpora{
 					      Default => \&XmlChar});
     $SrcHandler = $SrcParser->parse_start;
     $SrcHandler->{OUT} = $SRCOUT;
+    $SrcHandler->{LANGID} = $opt_u;
+    $SrcHandler->{LANGID_THR} = $opt_U;
     @{$SrcHandler->{FACTORS}} = @SrcFactors;
     $TrgParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
 					      End => \&XmlTagEnd,
 					      Default => \&XmlChar});
     $TrgHandler = $TrgParser->parse_start;
     $TrgHandler->{OUT} = $TRGOUT;
+    $TrgHandler->{LANGID} = $opt_w;
+    $TrgHandler->{LANGID_THR} = $opt_W;
     @{$TrgHandler->{FACTORS}} = @TrgFactors;
 
     # multiple file output (option -m): create new output files for each
@@ -565,6 +579,13 @@ sub XmlTagStart{
     my ($p,$e,%a)=@_;
 
     if ($e eq 's'){
+	## check langid attribute if necessary
+	if ($p->{LANGID}){
+	    return unless ($a{langid} eq $p->{LANGID});
+	    if ($p->{LANGID_THR}){
+		return if ($a{langidconf} < $p->{LANGID_THR});
+	    }
+	}
 	$p->{OPENSID} = $a{id};
 	delete $p->{CLOSEDSID};
 	$p->{NRWORDS}=0;

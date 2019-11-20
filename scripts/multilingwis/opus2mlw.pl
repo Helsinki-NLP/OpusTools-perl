@@ -144,6 +144,7 @@ sub AddAlignment{
     my @wids = ();
     foreach my $sid (@sentaligns){
 	my ($id,$w,$n) = split(/\t/,$sentid{"$did:$sid"});
+	next unless ($n);
 	foreach my $x (0..$n-1){
 	    push(@wids,$w+$x);
 	}

@@ -10,6 +10,7 @@ use File::Basename;
 use XML::Parser;
 use DB_File;
 
+binmode(STDIN, ":utf8");
 binmode(STDOUT, ":utf8");
 binmode(STDERR, ":utf8");
 
@@ -143,6 +144,7 @@ sub AddAlignment{
     
     my @wids = ();
     foreach my $sid (@sentaligns){
+	next unless (exists $sentid{"$did:$sid"});
 	my ($id,$w,$n) = split(/\t/,$sentid{"$did:$sid"});
 	next unless ($n);
 	foreach my $x (0..$n-1){

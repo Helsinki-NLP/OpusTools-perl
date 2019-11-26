@@ -2,9 +2,14 @@
 #-*-perl-*-
 
 use strict;
+
+use utf8;
+use open qw(:utf8 :std);
+
 use DB_File;
 use vars qw($opt_x $opt_s $opt_t $opt_d);
 use Getopt::Std;
+use DBM_Filter;
 
 getopts('d:s:t:x');
 
@@ -21,6 +26,7 @@ my %alg = ();
 my $first = 1;
 
 my ($sdoc,$tdoc,$sids,$tids);
+my $count = 0;
 
 while (<S>){
     chomp;
@@ -50,6 +56,10 @@ while (<S>){
 	}
     }
 
+    $count++;
+    print STDERR '.' unless ($count % 2000);
+    print STDERR " $count\n" unless ($count % 100000);
+
     # set source and target language if not set
     # (use first element in file path)
     unless ($srclang){
@@ -65,7 +75,8 @@ while (<S>){
     ## (need to check srclang and trglang first)
     if ($first){
 	my $DBFile = $opt_d || "$srclang-$trglang.db";
-	tie %alg, 'DB_File', $DBFile;
+	my $db = tie %alg, 'DB_File', $DBFile;
+	$db->Filter_Push('utf8');
 	$first = 0;
     }
 

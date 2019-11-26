@@ -126,6 +126,8 @@ sub XmlTagEnd{
 	    foreach ($TextSplitter->split_array($p->{TEXT})){
 		$count++;
 		my $sid = $p->{ID} ? $p->{ID}.'.'.$count : $count;
+		# make sure to get rid of spaces and colons/semicolons
+		$sid=~s/[\;\:\s]/\_/g;
 		$XmlWriter->startTag( 's',id => $sid );
 		$XmlWriter->characters( $_ );
 		$XmlWriter->endTag( 's' );

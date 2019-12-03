@@ -2,9 +2,14 @@
 #-*-perl-*-
 
 use strict;
+
+use utf8;
+use open qw(:utf8 :std);
+
 use DB_File;
 use vars qw($opt_d $opt_s);
 use Getopt::Std;
+use DBM_Filter;
 
 getopts('d:s:');
 
@@ -14,8 +19,12 @@ my $sentDB = $opt_s || 'sentid.db';
 my %docIDs = ();
 my %sentIDs = ();
 
-tie %docIDs, 'DB_File', $docDB;
-tie %sentIDs, 'DB_File', $sentDB;
+my $docDB = tie %docIDs, 'DB_File', $docDB;
+my $sentDB = tie %sentIDs, 'DB_File', $sentDB;
+
+## DBM_FILTER
+$docDB->Filter_Push('utf8');
+$sentDB->Filter_Push('utf8');
 
 
 my $doc = undef;
@@ -26,8 +35,12 @@ my $sentid = 1;
 my $wordid = 1;
 
 my $tokenNr=0;
+my $count = 0;
 
 while (<>){
+    $count++;
+    print STDERR '.' unless ($count % 100000);
+    print STDERR " $count ($docid/$sentid/$wordid)\n" unless ($count % 5000000);
     my ($d,$t) = split(/\:/);
     if ($d ne $doc){
 	if ($sent){

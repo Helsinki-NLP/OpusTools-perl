@@ -4,14 +4,21 @@
 use strict;
 use warnings;
 
+use utf8;
+use open qw(:utf8 :std);
+
 use vars qw($opt_d);
 use Getopt::Std;
 use File::Basename;
 use XML::Parser;
 use DB_File;
+use DBM_Filter;
 
-binmode(STDOUT, ":utf8");
-binmode(STDERR, ":utf8");
+# use Encode;
+
+#binmode(STDIN, ":utf8");
+#binmode(STDOUT, ":utf8");
+#binmode(STDERR, ":utf8");
 
 getopts('d:');
 
@@ -21,14 +28,20 @@ my $SentIdFile = shift(@ARGV);
 
 my %docid = ();
 my %sentid = ();
-tie %docid,  'DB_File', $DocIdFile;
-tie %sentid,  'DB_File', $SentIdFile;
+my $docDB = tie %docid,  'DB_File', $DocIdFile;
+my $sentDB = tie %sentid,  'DB_File', $SentIdFile;
+
+## DBM_FILTER
+$docDB->Filter_Push('utf8');
+$sentDB->Filter_Push('utf8');
 
 # open all alignment DBs
 my @alg = ();
+my @algDBs = ();
 foreach (0..$#ARGV){
     %{$alg[$_]} = ();
-    tie %{$alg[$_]},  'DB_File', $ARGV[$_];
+    $algDBs[$_] = tie %{$alg[$_]},  'DB_File', $ARGV[$_];
+    $algDBs[$_]->Filter_Push('utf8');
 }
 my @dblang = ();
 foreach my $db (@alg){
@@ -41,31 +54,56 @@ my %sentids = ();
 my %done = ();
 my $did;
 my $lang;
-
+my @langalg = ();
+my $count = 0;
 
 while (<STDIN>){
     if (/^(.*)\:\s*<s\s+[^>]*id\=\"([^\"]+)\"/){
 	my ($doc,$sid) = ($1,$2);
 
 	if ($doc ne $current){
-	    print STDERR "processing $doc ...\n";
 	    PrintSentences($did,$lang,\@sentences) if ($current);
 	    @sentences = ();
+	    print STDERR "processing $doc, reading ... ";
 	    ReadDocument($doc,\@sentences);
+	    print STDERR "done!\n";
 	    foreach my $s (0..$#sentences){
-		$sentids{$sentences[$s][0][9]} = $s;
+		# if (eval { decode('UTF-8', $sentences[$s][0][9], Encode::FB_CROAK); 1 }) {
+		    # $string is valid utf8
+		    $sentids{$sentences[$s][0][9]} = $s;
+		# }
+		## in some corpora the sid seems to cause a unicode problem
+		# my $utf8 = eval { decode( 'utf8', $sentences[$s][0][9], Encode::FB_CROAK ) } or next;
+		# $sentids{$sentences[$s][0][9]} = $s;
 	    }
 	    $current = $doc;
 	    $did = $docid{$doc};
 	    $lang = $doc;
 	    $lang =~s/^([^\/]+)\/.*$/$1/;
+	    ## all link DBs that include $lang
+	    @langalg = ();
+	    foreach my $db (@alg){
+		if ($lang ne $$db{__srclang__}){
+		    next if ($lang ne $$db{__trglang__});
+		}
+		push(@langalg,$db);
+	    }
 	}
 
-	foreach my $db (@alg){
-	    if ($lang ne $$db{__srclang__}){
-		next if ($lang ne $$db{__trglang__});
-	    }
+	$count++;
+	print STDERR '.' unless ($count % 1000);
+	print STDERR " $count\n" unless ($count % 50000);
+
+	# print STDERR "... add alignments\n";
+	# foreach my $idx (0..$#alg){
+	#     my $db = $alg[$idx];
+	#     if ($lang ne $dblang[$idx]{__srclang__}){
+	# 	next if ($lang ne $dblang[$idx]{__trglang__});
+	#     }
+
+	foreach my $db (@langalg){
 	    if (exists $$db{"$doc:$sid"}){
+		next unless (exists $sentids{$sid});
 		my ($tdoc,$sids,$tids,$walign) = split(/\t/,$$db{"$doc:$sid"});
 		if ($tdoc && $tids && $walign){
 		    AddAlignment($sentences[$sentids{$sid}],$tdoc,$tids,$walign);
@@ -84,7 +122,15 @@ PrintSentences($did,$lang,\@sentences) if ($current);
 sub PrintSentences{
     my ($did,$lang,$sent) = @_;
 
+    $lang = 'xx' unless ($lang);
+
     foreach my $s (@{$sent}){
+
+	## in some corpora the sid seems to cause a unicode problem
+	# my $utf8 = eval { decode( 'utf8', $$s[0][9], Encode::FB_CROAK ) } or next;
+	# unless (eval { decode('UTF-8', $$s[0][9], Encode::FB_CROAK); 1 }){
+	#     next;
+	# }
 
 	my $sid = $$s[0][9];
 	my ($id,$wstart,$nr) = split(/\t/,$sentid{"$did:$sid"});
@@ -118,6 +164,10 @@ sub PrintSentences{
 	    $$s[$w][12] = $lang;
 	    $$s[$w][13] = '0' unless ($$s[$w][13]);  ## TODO: is that OK?
 	    $$s[$w][14] = '{}';
+	    next unless ($$s[$w][1]);
+	    next unless ($$s[$w][8]=~/^[0-9]+$/);
+	    next unless ($$s[$w][9]=~/^[0-9]+$/);
+	    next unless ($$s[$w][10]=~/^[0-9]+$/);
 	    print join("\t",@{$$s[$w]});
 	    print "\n";
 	}
@@ -143,7 +193,9 @@ sub AddAlignment{
     
     my @wids = ();
     foreach my $sid (@sentaligns){
+	next unless (exists $sentid{"$did:$sid"});
 	my ($id,$w,$n) = split(/\t/,$sentid{"$did:$sid"});
+	next unless ($n);
 	foreach my $x (0..$n-1){
 	    push(@wids,$w+$x);
 	}

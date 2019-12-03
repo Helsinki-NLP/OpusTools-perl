@@ -4,7 +4,7 @@ use Cwd;
 use File::Copy;
 
 use lib 'lib';
-use OPUS::Tools;
+# use OPUS::Tools;
 
 name          'OPUS-Tools';
 license       'gpl';
@@ -38,6 +38,8 @@ install_script 'scripts/convert/tmx2opus';
 install_script 'scripts/convert/tmx2moses';
 install_script 'scripts/convert/opus2multi';
 install_script 'scripts/convert/xml2opus';
+install_script 'scripts/convert/opus2tmx';
+install_script 'scripts/convert/bitext2tmx';
 
 
 requires 'Archive::Zip'     => 0;
@@ -47,7 +49,7 @@ requires 'DB_File'          => 0;
 requires 'HTML::Entities'   => 0;
 requires 'Lingua::Sentence' => 0;
 requires 'Test::More'       => 0;
-# requires 'Ufal::UDPipe'     => 0;
+requires 'Ufal::UDPipe'     => 0;
 requires 'XML::Parser'      => 0;
 requires 'XML::Writer'      => 0;
 

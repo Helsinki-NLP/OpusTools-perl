@@ -20,13 +20,9 @@ The following Perl libraries are required
 * DB_File
 * HTML::Entities
 * Lingua::Sentence
+* Ufal::UDPipe
 * XML::Parser
 * XML::Writer
-
-and for opus-udpipe:
-
-* Ufal::UDPipe
-
 
 
 ## Tools and their usage

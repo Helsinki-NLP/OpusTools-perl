@@ -1,5 +1,6 @@
 
 
+- opus2tmx and bitext2tmx added
 - opus-split-align and opus-merge-align added
 - tmx2opus and tmx2moses added
 - opus-pivoting added for pivoting between bitexts

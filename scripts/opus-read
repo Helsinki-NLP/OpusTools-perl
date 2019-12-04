@@ -175,6 +175,7 @@ my $SrcHandle;
 my $TrgHandle;
 
 my $count=0;
+$/ = '>';            # use tag end as input delimiter
 while (<$fh>){
     if (/fromDoc=\"([^\"]+)\"/){
 	if ($srcdoc ne $1){

@@ -124,6 +124,9 @@ unless ($version){
 
 ## NEW: scan all model names in ModelDir
 ##      (rely on name-to-iso639 conversion)
+## TODO: should keep different treebank versions
+## ---> would require some flag for selecting different versions
+## ---> would require a default version per language
 
 my %UDmodels = ();
 my @AllModels = glob("$ModelDir/*-ud-*.udpipe");
@@ -134,7 +137,14 @@ foreach (@AllModels){
 	$lang =~s/\_/ /g;
 	my $id = iso639_NameToTwo($lang);
 	if ($id=~/^..(\_..)?$/){
-	    $UDmodels{$id} = $modelbase;
+	    $UDmodels{$id} = $modelbase unless ($UDmodels{$id});;
+	}
+	else{
+	    ($lang) = split(/\-/,$lang);
+	    $id = iso639_NameToTwo($lang);
+	    if ($id=~/^..(\_..)?$/){
+		$UDmodels{$id} = $modelbase unless ($UDmodels{$id});
+	    }
 	}
     }
 }

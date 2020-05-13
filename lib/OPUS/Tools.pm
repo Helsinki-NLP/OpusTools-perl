@@ -69,7 +69,7 @@ my @ALT_OPUS_HOME = ( '/proj/OPUS',                # taito
 		      '/projects/nlpl/data/OPUS',  # abel
 		      '/home/opus/OPUS',           # lingfil
 		      $ENV{HOME}.'/OPUS',          # user home
-		      $ENV{HOME}.'/research//OPUS');
+		      $ENV{HOME}.'/research/OPUS');
 
 our $OPUS_HOME;
 foreach (@ALT_OPUS_HOME){
@@ -96,8 +96,8 @@ foreach (@ALT_OPUS_NLPL){
 
 
 # our $OPUS_HOME     = '/proj/nlpl/data/OPUS';
-# our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
-our $OPUS_PUBLIC   = $OPUS_HOME.'/web';
+our $OPUS_PUBLIC   = $OPUS_HOME.'/public_html';
+# our $OPUS_PUBLIC   = $OPUS_HOME.'/web';
 our $OPUS_HTML     = $OPUS_HOME.'/html';
 our $OPUS_CORPUS   = $OPUS_HOME.'/corpus';
 our $OPUS_DOWNLOAD = $OPUS_HOME.'/download';
@@ -132,6 +132,8 @@ my %CorpusBase;
 ##      Info: "corpus/src-trg" -> list-of-files-and-statistics
 
 sub open_info_dbs{
+    system("mkdir -p $INFODB_HOME") unless (-d $INFODB_HOME);
+    print STDERR "open info DBs in $INFODB_HOME\n";
     tie %LangNames,"DB_File","$INFODB_HOME/LangNames.db";
     tie %Corpora,"DB_File","$INFODB_HOME/Corpora.db";
     tie %LangPairs,"DB_File","$INFODB_HOME/LangPairs.db";

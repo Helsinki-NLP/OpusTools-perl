@@ -113,7 +113,7 @@ my $DATADIR = $opt_m || '/tmp/BITEXTINDEXER'.$$;
 mkdir $DATADIR,0755 unless (-d $DATADIR);
 
 ## temporary data
-my $TMPDIR = tempdir( CLEANUP => 1 );
+my $TMPDIR = tempdir( DIR=>$ENV{TMPDIR}, CLEANUP => 1 );
 
 
 my $SentTag='s';                 # default sentence tag

@@ -73,12 +73,19 @@ my $LinkScoreField = $opt_C || 'certainty';
 ## print a new alignment file
 my $XmlWriter = &open_cesalign($opt_b) if ($opt_b);
 
+my $SrcOut = IO::File->new($opt_e, '>:utf8') if ($opt_e);
+my $TrgOut = IO::File->new($opt_f, '>:utf8') if ($opt_f);
+
+my $count = 0;
+my $readmax = $opt_x;
 while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links, 
 		      '-include-empty'   => $opt_E,
 		      '-one-to-one'      => $opt_1,
-		      '-read-max'        => $opt_x,
+		      '-read-max'        => $readmax,
 		      '-score-attribute' => $LinkScoreField,
 		      '-score-threshold' => $opt_C) ){
+
+    next unless ($SrcDoc && $TrgDoc);
 
     ## skip certain files
     if (&skip_file($opt_n, $SrcDoc, $TrgDoc, $opt_i)){
@@ -104,12 +111,23 @@ while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links,
     &read_sentences($TrgDoc, $CorpusDir, \%TrgInLink, \@TrgSents, \%TrgIdx);
 
     print STDERR "print bitext\n";
-    &print_bitext(\@Links,\@SrcSents,\@TrgSents,\%SrcIdx,\%TrgIdx,$opt_e,$opt_f);
+    &print_bitext(\@Links,\@SrcSents,\@TrgSents,\%SrcIdx,\%TrgIdx,$SrcOut,$TrgOut);
     &print_linkgrp($XmlWriter,$SrcDoc,$TrgDoc,\@Links) if ($opt_b);
 
+    $count += scalar @Links;
+    if ($opt_x){
+	last if ($count>=$opt_x);
+	$readmax = $opt_x - $count;
+    }
+
     ## document boundary
-    print "\n" if ($opt_D)
+    print "\n" if ($opt_D);
+    print $SrcOut "\n" if ($opt_e);
+    print $TrgOut "\n" if ($opt_f);
 }
+
+$SrcOut->close() if ($opt_e);
+$TrgOut->close() if ($opt_f);
 
 &close_cesalign($XmlWriter) if ($opt_b);
 
@@ -136,8 +154,7 @@ sub skip_file{
 
 sub open_cesalign{
     my $file = shift;
-    my $fh;
-    open $fh,">$file" || die "cannot write to $file";
+    my $fh = IO::File->new(">$file");
     my $XmlWriter = XML::Writer->new( OUTPUT => $fh,
 				      DATA_MODE => 1,
 				      DATA_INDENT => 1 );
@@ -151,12 +168,14 @@ sub close_cesalign{
     my $XmlWriter = shift;
     $XmlWriter->endTag('cesAlign');
     $XmlWriter->end();
+    my $fh = $XmlWriter->getOutput();
+    $fh->close();
 }
 
 sub print_linkgrp{
     my ($XmlWriter,$SrcDoc,$TrgDoc,$links) = @_;
 
-    $XmlWriter->emptyTag('linkGrp', targType => 's',
+    $XmlWriter->startTag('linkGrp', targType => 's',
 			 fromDoc => $SrcDoc, toDoc => $TrgDoc );
     foreach (@{$links}){
 	$XmlWriter->emptyTag('link', xtargets => $_);
@@ -211,24 +230,21 @@ sub read_sentences{
 
 
 sub print_bitext{
-    my ($links,$SrcSents,$TrgSents,$SrcIdx,$TrgIdx,$SrcFile,$TrgFile) = @_;
-
-    open S,">$SrcFile" if ($SrcFile);
-    open T,">$TrgFile" if ($TrgFile);
+    my ($links,$SrcSents,$TrgSents,$SrcIdx,$TrgIdx,$SrcOut,$TrgOut) = @_;
 
     foreach my $l (@{$links}){
 	my ($src,$trg) = split(/\;/,$l);
 	foreach my $sid (split(/\s+/,$src)){
-	    if ($SrcFile){ print S $$SrcSents[$$SrcIdx{$sid}],' '; }
+	    if ($SrcOut){ print $SrcOut $$SrcSents[$$SrcIdx{$sid}],' '; }
 	    else{ print $$SrcSents[$$SrcIdx{$sid}],' '; }
 	}
-	if ($SrcFile){ print S "\n"; }
+	if ($SrcOut){ print $SrcOut "\n"; }
 	else{ print "\t"; }
 	foreach my $tid (split(/\s+/,$trg)){
-	    if ($TrgFile){ print T $$TrgSents[$$TrgIdx{$tid}],' '; }
+	    if ($TrgOut){ print $TrgOut $$TrgSents[$$TrgIdx{$tid}],' '; }
 	    else{ print $$TrgSents[$$TrgIdx{$tid}],' '; }
 	}
-	if ($TrgFile){ print T "\n"; }
+	if ($TrgOut){ print $TrgOut "\n"; }
 	else{ print "\n"; }
     }
 }
@@ -310,6 +326,7 @@ sub AlignTagStart{
 	${$p->{__TRGDOC__}} = $a{toDoc};
     }
     elsif ($e eq 'link'){
+	return unless (${$p->{__SRCDOC__}} && ${$p->{__TRGDOC__}});
 	my ($src,$trg) = split(/\;/,$a{xtargets});
 	if ( ($src && $trg) || ( $$p{__OPT__}{'-include-empty'} && ($src || $trg) ) ){
 

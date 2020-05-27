@@ -6,13 +6,17 @@
 # USAGE: ./iso639.pl [-e|-f] [langcode]*
 #
 # convert to 3-letter-code if 2-letter code is given and vice versa
+# -2 ... print 2-letter code (even if the input is a 2-letter code)
+# -3 ... print 3-letter code (even if the input is a 3-letter code)
 # -e ... print English name
 # -f ... print French name
 #
+# TODO: support conversion from 2-letter+regional code
+#       (now regional code is simply deleted)
 
 use vars qw($opt_e $opt_f);
 use Getopt::Std;
-getopts('ef');
+getopts('23ef');
 
 
 

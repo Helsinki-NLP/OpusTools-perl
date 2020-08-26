@@ -7,7 +7,7 @@ use lib 'lib';
 # use OPUS::Tools;
 
 name          'OPUS-Tools';
-license       'gpl';
+license       'mit';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
 version       '0.2.2';

@@ -44,9 +44,12 @@ use File::Temp qw/ tempfile /;
 use DB_File;
 # use DBM_Filter;
 
-use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_u $opt_v);
+use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_t $opt_u $opt_v);
 use Getopt::Std;
-getopts('do:p:Pruv');
+getopts('do:p:Prt:uv');
+
+
+$DB_BTREE->{'cachesize'} = 1000000 ;
 
 
 my $outfile = $opt_o || @ARGV[0] || 'text.xml.gz';
@@ -67,7 +70,8 @@ if ($part){
 
 
 my %LangSeg = ();
-my %LangDB = ();
+my %LangDB  = ();
+my %LangDBH = ();
 my $CurrentLang = 'en';
 
 my %SentID = ();
@@ -313,6 +317,19 @@ sub print_sentences{
 }
 
 
+sub get_tempfile{
+    my $dir = shift;
+    if ($dir && -d $dir){
+	my ($fh, $filename) = tempfile(DIR => $opt_t );
+	close $fh;
+	return $filename;
+    }
+    my ($fh, $filename) = tempfile();
+    close $fh;
+    return $filename;	
+}
+
+
 ## check whether the sentence is stored in our cache
 sub find_sentence{
     my ($sent,$lang) = @_;
@@ -321,14 +338,13 @@ sub find_sentence{
 	%{$LangDB{$lang}} = ();
 	## create a new DB file if necessary
 	if ($opt_d){
-	    my ($fh, $filename) = tempfile();
-	    close $fh;
-	    tie %{$LangDB{$lang}}, "DB_File", $filename ;
+	    my $filename = get_tempfile($opt_t);
+	    $LangDBH{$lang} = tie %{$LangDB{$lang}}, "DB_File", $filename, O_CREAT|O_RDWR, 0666, $DB_BTREE ;
 	    ## this does not seem to work
 	    ## from https://www.perl.com/pub/2012/06/perlunicook-unicode-text-in-dbm-files-the-easy-way.html/
 	    # my $dbobj = tie %{$LangDB{$lang}}, "DB_File", $filename ;
 	    # $dbobj->Filter_Value_Push("utf8");
-	    print STDERR "Sentence in language $lang stored in $filename\n" if ($opt_v);
+	    print STDERR "Sentence in language $lang stored in $filename\n"; # if ($opt_v);
 	}
     }
     if (exists $LangDB{$lang}{$sent}){

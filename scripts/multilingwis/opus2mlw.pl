@@ -28,8 +28,8 @@ my $SentIdFile = shift(@ARGV);
 
 my %docid = ();
 my %sentid = ();
-my $docDB = tie %docid,  'DB_File', $DocIdFile;
-my $sentDB = tie %sentid,  'DB_File', $SentIdFile;
+my $docDB = tie %docid,  'DB_File', $DocIdFile, O_CREAT|O_RDWR, 0666, $DB_BTREE;
+my $sentDB = tie %sentid,  'DB_File', $SentIdFile, O_CREAT|O_RDWR, 0666, $DB_BTREE;
 
 ## DBM_FILTER
 $docDB->Filter_Push('utf8');
@@ -40,7 +40,7 @@ my @alg = ();
 my @algDBs = ();
 foreach (0..$#ARGV){
     %{$alg[$_]} = ();
-    $algDBs[$_] = tie %{$alg[$_]},  'DB_File', $ARGV[$_];
+    $algDBs[$_] = tie %{$alg[$_]},  'DB_File', $ARGV[$_], O_CREAT|O_RDWR, 0666, $DB_BTREE;
     $algDBs[$_]->Filter_Push('utf8');
 }
 my @dblang = ();

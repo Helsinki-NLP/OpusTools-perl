@@ -19,8 +19,8 @@ my $sentDB = $opt_s || 'sentid.db';
 my %docIDs = ();
 my %sentIDs = ();
 
-my $docDB = tie %docIDs, 'DB_File', $docDB;
-my $sentDB = tie %sentIDs, 'DB_File', $sentDB;
+my $docDB = tie %docIDs, 'DB_File', $docDB, O_CREAT|O_RDWR, 0666, $DB_BTREE;
+my $sentDB = tie %sentIDs, 'DB_File', $sentDB, O_CREAT|O_RDWR, 0666, $DB_BTREE;
 
 ## DBM_FILTER
 $docDB->Filter_Push('utf8');

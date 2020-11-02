@@ -33,6 +33,7 @@ install_script 'scripts/alignments/opus-pivoting';
 install_script 'scripts/convert/opus-iso639';
 install_script 'scripts/convert/opus2text';
 install_script 'scripts/convert/opus2moses';
+install_script 'scripts/convert/opus2bitext';
 install_script 'scripts/convert/moses2opus';
 install_script 'scripts/convert/tmx2opus';
 install_script 'scripts/convert/tmx2moses';

@@ -83,7 +83,7 @@ while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links,
 		      '-one-to-one'      => $opt_1,
 		      '-read-max'        => $readmax,
 		      '-score-attribute' => $LinkScoreField,
-		      '-score-threshold' => $opt_C) ){
+		      '-score-threshold' => $opt_c) ){
 
     next unless ($SrcDoc && $TrgDoc);
 

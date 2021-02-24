@@ -1,9 +1,9 @@
+use lib '.';
 use inc::Module::Install;
 
-use Cwd;
-use File::Copy;
-
-use lib 'lib';
+# use Cwd;
+# use File::Copy;
+# use lib 'lib';
 # use OPUS::Tools;
 
 name          'OPUS-Tools';

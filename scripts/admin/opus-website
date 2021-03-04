@@ -30,8 +30,8 @@ use lib "$Bin/../../lib";
 use OPUS::Tools;
 use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
-our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r);
-getopts('s:m:o:d:h:r:');
+our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r, $opt_S);
+getopts('s:m:o:d:h:r:S');
 
 my $PWD     = $ENV{PWD};
 
@@ -80,6 +80,7 @@ my %lang;
 print STDERR "find all bitexts in the corpus ...\n";
 &GetBitexts($xmldir,\%lang,\%bitexts);
 
+## TODO: can we skip this now?
 print STDERR "store info in DB ...\n";
 &store_info($CORPUS,$VERSION,\%lang,\%bitexts);
 
@@ -101,7 +102,7 @@ print STDERR "create download table ...\n";
 my $download=&DownloadTable(\%lang,\%bitexts,\%samples,\%parsesamples);
 
 print STDERR "compute/read corpus statistics ...\n";
-my ($total,$lang)=&Statistics(\%lang,\%bitexts);
+my ($total,$lang,$nrMoses,$nrTMX) = &Statistics(\%lang,\%bitexts);
 
 print &p().$total.&p();
 print &h3('Download');
@@ -123,24 +124,29 @@ print '<td>Upper-right triangle: ';
 print 'sample files <ul><li><i>view</i> = bilingual XML file samples</li> ';
 print '<li><i>upper row language IDs</i> = monolingual XML file samples</li> ';
 print '<li><i>rightmost column language IDs</i> = untokenized corpus files</li></ul></td></tr></table>';
-
-
 print &p();
 print $download.&p();
-print &h3('Statistics and TMX/Moses Downloads');
-print 'Number of files, tokens, and sentences per language (including non-parallel ones if they exist)'.&br();
-print 'Number of sentence alignment units per language pair'.&p();
-print 'Upper-right triangle: ';
-print 'download translation memory files (TMX)';
-print &br();
-print 'Bottom-left triangle: ';
-print 'download plain text files (MOSES/GIZA++)';
-print &br();
-print "Language ID's, first row: monolingual plain text files (tokenized)";
-print &br();
-print "Language ID's, first column: monolingual plain text files (untokenized)";
-print $lang.&p();
-print 'Note that TMX files only contain unique translation units and, therefore, the number of aligned units is smaller than for the distributions in Moses and XML format. Moses downloads include all non-empty alignment units including duplicates. Token counts for each language also include duplicate sentences and documents.'.&p();
+
+## opt -S = skip the statistics table
+unless ($opt_S){
+    if ($nrMoses && $nrTMX){
+	print &h3('Statistics and TMX/Moses Downloads');
+	print 'Number of files, tokens, and sentences per language (including non-parallel ones if they exist)'.&br();
+	print 'Number of sentence alignment units per language pair'.&p();
+	print 'Upper-right triangle: ';
+	print 'download translation memory files (TMX)';
+	print &br();
+	print 'Bottom-left triangle: ';
+	print 'download plain text files (MOSES/GIZA++)';
+	print &br();
+	print "Language ID's, first row: monolingual plain text files (tokenized)";
+	print &br();
+	print "Language ID's, first column: monolingual plain text files (untokenized)";
+	print $lang.&p();
+	print 'Note that TMX files only contain unique translation units and, therefore, the number of aligned units is smaller than for the distributions in Moses and XML format. Moses downloads include all non-empty alignment units including duplicates. Token counts for each language also include duplicate sentences and documents.'.&p();
+    }
+}
+
 print &HtmlEnd();
 
 
@@ -180,6 +186,9 @@ sub MakeSampleFiles{
 
     print STDERR " - bitext samples\n";
     foreach (keys %{$bitexts}){
+	if (/bn\_in\-es/){
+	    print '';
+	}
 	if (-e $$bitexts{$_}){
 	    $$samples{$_}="$HTMLHOME/$CORPUS/$VERSION/$_\_sample.html";
 	}
@@ -213,27 +222,30 @@ sub GetBitexts{
 		$$lang{$t}="$xmldir/$t";
 		$$bitexts{"$s-$t"}="$xmldir/$s-$t.xml.gz";
 	    }
-	    elsif (exists $alg{"$s$t.xml.gz"}){
-		$$lang{$s}="$xmldir/$s";
-		$$lang{$t}="$xmldir/$t";
-		$$bitexts{"$s-$t"}="$xmldir/$s$t.xml.gz";
-	    }
-	    else{
-		my $src=$s;
-		my $trg=$t;
-		$src=~s/^[^\_]*\_//;
-		$trg=~s/^[^\_]*\_//;
-		if (exists $alg{"$s-$t.xml.gz"}){
-		    $$lang{$s}="$xmldir/$s";
-		    $$lang{$t}="$xmldir/$t";
-		    $$bitexts{"$s-$t"}="$xmldir/$s-$t.xml.gz";
-		}
-		elsif (exists $alg{"$src$trg.xml.gz"}){
-		    $$bitexts{"$src-$trg"}="$xmldir/$src$trg.xml.gz";
-		    $$lang{$src}="$xmldir/$s";
-		    $$lang{$trg}="$xmldir/$t";
-		}
-	    }
+
+	    ## NEW: this flexibility below has the risk to match the wrong files
+	    ##
+	    # elsif (exists $alg{"$s$t.xml.gz"}){
+	    # 	$$lang{$s}="$xmldir/$s";
+	    # 	$$lang{$t}="$xmldir/$t";
+	    # 	$$bitexts{"$s-$t"}="$xmldir/$s$t.xml.gz";
+	    # }
+	    # else{
+	    # 	my $src=$s;
+	    # 	my $trg=$t;
+	    # 	$src=~s/^[^\_]*\_//;
+	    # 	$trg=~s/^[^\_]*\_//;
+	    # 	if (exists $alg{"$s-$t.xml.gz"}){
+	    # 	    $$lang{$s}="$xmldir/$s";
+	    # 	    $$lang{$t}="$xmldir/$t";
+	    # 	    $$bitexts{"$s-$t"}="$xmldir/$s-$t.xml.gz";
+	    # 	}
+	    # 	elsif (exists $alg{"$src$trg.xml.gz"}){
+	    # 	    $$bitexts{"$src-$trg"}="$xmldir/$src$trg.xml.gz";
+	    # 	    $$lang{$src}="$xmldir/$s";
+	    # 	    $$lang{$trg}="$xmldir/$t";
+	    # 	}
+	    # }
 	}
     }
 }
@@ -310,6 +322,8 @@ sub Statistics{
     my %nrSent;
     my %nrFiles;
     my %nrLinks;
+    my $nrMoses = 0;
+    my $nrTMX = 0;
 
     my @rows;
     push (@rows,&th(['language','files','tokens','sentences']));
@@ -365,6 +379,7 @@ sub Statistics{
 			{bgcolor=>size_color($nrTokens{"$s-$t.$s"}
 					     +$nrTokens{"$s-$t.$t"})},
 			["<a rel=\"nofollow\" title='$title' href=\"download.php?f=$RELEASEBASE/moses/$truncfilebase.txt.zip\">$nr</a>\n"]);
+		    $nrMoses++;
 		}
 		else{$rows[-1].=&td(['']);}
 	    }
@@ -393,6 +408,7 @@ sub Statistics{
 			{bgcolor=>size_color($nrTokens{"$s-$t.$s"}
 					     +$nrTokens{"$s-$t.$t"})},
 			["<a rel=\"nofollow\" title='$title' href=\"download.php?f=$RELEASEBASE/tmx/$truncfilebase.tmx.gz\">$nr</a>\n"]);
+		    $nrTMX++;
 		}
 		else{$rows[-1].=&td(['']);}
 	    }
@@ -409,7 +425,7 @@ sub Statistics{
     $TOTAL.=pretty_number($nrSent{total},2).&br();
 
     my $LANG=&table(caption(''),Tr(\@rows));
-    return ($TOTAL,&div({-class=>'counts'},$LANG));
+    return ($TOTAL,&div({-class=>'counts'},$LANG),$nrMoses,$nrTMX);
 
 }
 

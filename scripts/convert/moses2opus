@@ -134,10 +134,14 @@ print '<?xml version="1.0" encoding="utf-8"?>
 
 my ($SrcWriter,$TrgWriter) = open_output($filebase,$srclang,$trglang,$part);
 
+## only allow 2-letter codes, fallbak to English
+my ($srcSplitLang,$trgSplitLang) = ($srclang,$trglang);
+$srcSplitLang = 'en' unless ($srclang=~/^..$/);
+$trgSplitLang = 'en' unless ($trglang=~/^..$/);
 
 ## create sentence splitters
-my $SrcSplitter = Lingua::Sentence->new($srclang);
-my $TrgSplitter = Lingua::Sentence->new($trglang);
+my $SrcSplitter = Lingua::Sentence->new($srcSplitLang);
+my $TrgSplitter = Lingua::Sentence->new($trgSplitLang);
 
 
 

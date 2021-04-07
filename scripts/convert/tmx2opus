@@ -18,6 +18,7 @@ tmx2opus - convert TMX into OPUS XML
 
   -o outfile ........ name of the output file (default = tmxfile)
   -p size ........... new files after <size> translation units
+  -I ................ skip identical aligned sentences
   -P ................ do NOT change some property names from ParaCrawl TMX
   -r ................ always remove regional codes
   -u ................ store unique sentences only
@@ -44,9 +45,9 @@ use File::Temp qw/ tempfile /;
 use DB_File;
 # use DBM_Filter;
 
-use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_t $opt_u $opt_v);
+use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_t $opt_u $opt_v $opt_I);
 use Getopt::Std;
-getopts('do:p:Prt:uv');
+getopts('do:p:Prt:uvI');
 
 
 $DB_BTREE->{'cachesize'} = 1000000 ;
@@ -91,6 +92,8 @@ my $TMXHandler = $TMXParser->parse_start;
 
 my $count = 0;
 binmode(STDIN);
+binmode(STDERR,":utf8");
+
 while (<>){
 
     ## fix un-escaped XML entities
@@ -221,6 +224,22 @@ sub print_alignments{
     return unless (ref($seg) eq 'HASH');
     my @langs = sort keys %{$seg};
     return unless ($#langs);
+
+    ## skip translation units made of identical strings
+    ## --> they are not translated!
+    if ($opt_I){
+	my %str = ();
+	foreach my $l (@langs){
+	    my $s = join("\n",@{$$seg{$l}});
+	    if (exists $str{$s}){
+		print STDERR "skip $l: identical $s\n" if ($opt_v);
+		delete $$seg{$l};
+	    }
+	    $str{$s}++;
+	}
+	@langs = sort keys %{$seg};
+	return unless ($#langs);
+    }
 
     ## in case we want to split the data
     ## close and reopen data files

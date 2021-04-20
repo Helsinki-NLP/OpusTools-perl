@@ -3,16 +3,45 @@
 #
 
 use File::Basename;
+use Getopt::Long;
 
-my $algfile1 = shift(@ARGV);
-my $algfile2 = shift(@ARGV);
+my $help = 0;
+my $verbose = 0;
+my $scorefilter = "";
+my $alignall = 0;
+
+# FIXME: wide option - get all alignments
+# FIXME: low option - only get those alignments where there is only one match (default option)
+# FIXME: score filter? Depends on source data, so need both XML attribute and value
+#  might also auto-detect the attribute (usually there aren't that many)
+
+GetOptions(
+    "help|h" => \$help,
+    "verbose|v" => \$verbose,
+    "scorefilter|s" => \$scorefilter,
+    "alignall|a" => \$alignall,
+    );
+
+my $algfile1 = shift;
+my $algfile2 = shift;
+
+if ($help || !($algfile1 && $algfile2)) {
+    &pivoting_usage()
+}
+
+if (! -f $algfile1) {
+    die "Not a file: $algfile1"
+}
+
+if (! -f $algfile2) {
+    die "Not a file: $algfile2"
+}
 
 my $base1 = basename($algfile1);
 my $base2 = basename($algfile2);
 
-
-$base1=~s/\.xml(\.gz)//;
-$base2=~s/\.xml(\.gz)//;
+$base1 =~ s/\.xml(\.gz)//;
+$base2 =~ s/\.xml(\.gz)//;
 
 my ($src1,$trg1) = split(/\-/,$base1);
 my ($src2,$trg2) = split(/\-/,$base2);
@@ -37,7 +66,7 @@ else{
 
 
 
-if ($algfile1=~/\.gz/){
+if ($algfile1 =~ /\.gz/){
     open(F,"gzip -cd < $algfile1 |") || die "cannot read from $algfile1";
 }
 else{
@@ -46,7 +75,7 @@ else{
 
 print STDERR "read links from $algfile1 ...\n";
 
-my %links1=();
+my %links1 = ();
 my $fromDoc = undef;
 my $toDoc = undef;
 
@@ -72,12 +101,7 @@ while (<F>){
 
 close(F);
 
-
-
-
-
-
-if ($algfile2=~/\.gz/){
+if ($algfile2 =~ /\.gz/){
     open(F,"gzip -cd < $algfile2 |") || die "cannot read from $algfile2";
 }
 else{
@@ -147,3 +171,19 @@ if ($currentFromDoc){
     print "</linkGrp>\n";
 }
 print "</cesAlign>\n";
+
+sub pivoting_usage {
+
+die <<USAGE_END
+
+Usage: $0 <options> alignment_file1 alignment_file2
+
+Pivot alignment using two XCES alignment files. Produces another XCES alignment file as a result.
+
+Options
+ -v  | -verbose   Verbose
+ -h  | -help      This help
+
+USAGE_END
+
+}

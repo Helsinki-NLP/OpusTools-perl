@@ -7,13 +7,14 @@ use strict;
 use File::Basename;
 use Getopt::Long;
 use Data::Dumper;
-use Sort::Naturally qw/nsort/;
+#use Sort::Naturally qw/nsort/;
 
 my $help = 0;
 my $verbose = 0;
 my $scorefilter = "";
 my $alignall = 0;
 my $emptylinks = 0;
+my $scoreattribute = "";
 
 # FIXME: implement getting all alignments
 # FIXME: take score into account
@@ -26,6 +27,7 @@ GetOptions(
     "scorefilter|s" => \$scorefilter,
     "alignall|a" => \$alignall,
     "emptylinks|e" => \$emptylinks,
+    "scoreattribute|t:s" => \$scoreattribute,
     );
 
 my $algfile1 = shift;
@@ -69,15 +71,6 @@ else{
     die "no pivot language found";
 }
 
-if ($algfile1 =~ /\.gz/){
-    open(F,"gzip -cd < $algfile1 |") || die "cannot read from $algfile1";
-}
-else{
-    open(F,"<$algfile1") || die "cannot read from $algfile1";
-}
-
-print STDERR "read links from $algfile1 ...\n";
-
 
 sub get_links_from_file {
 
@@ -100,6 +93,9 @@ sub get_links_from_file {
     my $toDoc = undef;
 
     while (<$fh>){
+
+        my $score = undef;
+
         if (/fromDoc=\"([^\"]+)\"/){
             $fromDoc=$1;
         }
@@ -107,29 +103,41 @@ sub get_links_from_file {
             $toDoc=$1;
         }
 
+        if ($scoreattribute &&
+            /$scoreattribute=\"([^\"]+?)\"/){
+            $score = $1;
+        }
+
         if (/xtargets=\"([^\"]+)\"/){
             my $link = $1;
             my ($s,$t) = split(/\;/,$link);
+
+            # Ignore links without source or target alignment
+            if ($s =~ /^\s*$/ || $t =~ /^\s*$/) {
+                next unless $emptylinks;
+            }
+
             if ($pivot_src){
-                # Ignore links where source does not have an alignment
-                if ($s =~ /^\s*$/ || $t =~ /^\s*$/) {
-                    next unless $emptylinks;
-                }
                 # Use an array to store the links - may have multiple
                 if (exists($links->{$fromDoc}{$s})) {
-                    push @{$links->{$fromDoc}{$s}}, "$toDoc:$t"
+                    # Assume descending order based on score - assume that first instance is the best
+                    if ($alignall) {
+                        # FIXME: store score also
+                        push @{$links->{$fromDoc}{$s}}, "$toDoc:$t"
+                    }
                 }
                 else {
                     $links->{$fromDoc}{$s} = ["$toDoc:$t"];
                 }
             }
             else{
-                # Ignore links where target does not have an alignment
-                if ($s =~ /^\s*$/ || $t =~ /^\s*$/) {
-                    next unless $emptylinks;
-                }
                 if (exists($links->{$toDoc}{$t})) {
-                    push @{$links->{$toDoc}{$t}}, "$fromDoc:$s"
+                    # Assume descending order based on score - assume that first instance is the best
+                    # Discard the rest nuless we specifically want them all
+                    if ($alignall) {
+                        # FIXME: store score also
+                        push @{$links->{$toDoc}{$t}}, "$fromDoc:$s"
+                    }
                 }
                 else {
                     $links->{$toDoc}{$t} = ["$fromDoc:$s"];
@@ -143,7 +151,6 @@ sub get_links_from_file {
     return $links;
 }
 
-# print STDERR ($pivot, $src1),"\n";
 my $links1 = get_links_from_file($algfile1, $pivot eq $src1 ? 1 : 0);
 # print STDERR Dumper($links1);
 
@@ -161,10 +168,10 @@ my $currentToDoc = undef;
 my $fromDoc = undef;
 my $toDoc = undef;
 
-foreach my $s_doc (keys %$links2) {
+foreach my $s_doc (sort keys %$links2) {
     if (exists($links1->{$s_doc})) {
-#        foreach my $s_align (sort { $a cmp $b } keys %{$links2->{$s_doc}}) {
-        foreach my $s_align (nsort keys %{$links2->{$s_doc}}) {
+        foreach my $s_align (sort keys %{$links2->{$s_doc}}) {
+#        foreach my $s_align (nsort keys %{$links2->{$s_doc}}) {
             if (exists($links1->{$s_doc}->{$s_align})) {
 #                printf STDERR "%s: %s\n", $s_doc, $s_align;
                 my @talignments;
@@ -179,6 +186,14 @@ foreach my $s_doc (keys %$links2) {
                 # Here we have listed all possible alignments
                 # FIXME: check whether there are multiple alignments
                 # FIXME: handle scoring in case of multiple alignments
+
+#                if (scalar @salignments > 1) {
+#                    print STDERR "Multiple source alignments: $s_doc $s_align\n"
+#                }
+
+#                if (scalar @talignments > 1) {
+#                    print STDERR "Multiple target alignments: $s_doc $s_align\n"
+#                }
 
                 foreach my $a1 (@talignments) {
                     my ($t_doc, $t_align) = split(/:/, $a1);

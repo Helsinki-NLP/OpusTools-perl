@@ -82,6 +82,18 @@ if ($topn && !$scoreattribute) {
     $topn = 0;
 }
 
+if ($verbose) {
+    if ($scoreattribute) {
+        print STDERR "Using scoreattribute: $scoreattribute\n";
+    }
+    if ($alignall) {
+        print STDERR "Getting all alignments\n";
+    }
+    elsif ($topn) {
+        print STDERR "Getting top $topn alignments\n";
+    }
+}
+
 sub get_links_from_file {
 
     my ($file, $pivot_src) = @_;
@@ -308,6 +320,10 @@ if ($currentFromDoc){
     print "</linkGrp>\n";
 }
 print "</cesAlign>\n";
+
+if ($verbose) {
+    print STDERR "done\n"
+}
 
 
 sub pivoting_usage {

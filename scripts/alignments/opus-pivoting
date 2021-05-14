@@ -6,8 +6,9 @@ use strict;
 
 use File::Basename;
 use Getopt::Long;
-use Data::Dumper;
+#use Data::Dumper;
 #use Sort::Naturally qw/nsort/;
+use Time::HiRes qw/time/;
 
 my $help = 0;
 my $verbose = 0;
@@ -187,14 +188,19 @@ sub get_links_from_file {
 
     return $links, $scores;
 }
+my $begin_time = time();
 
 my ($links1, $scores1) = get_links_from_file($algfile1, $pivot eq $src1 ? 1 : 0);
 #print STDERR Dumper($links1);
 #print STDERR Dumper($scores1);
 
+my $l1_time = time();
+
 my ($links2, $scores2) = get_links_from_file($algfile2, $pivot eq $src2 ? 1 : 0);
 #print STDERR Dumper($links2);
 #print STDERR Dumper($scores2);
+
+my $l2_time = time();
 
 print '<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
@@ -206,6 +212,25 @@ my $currentToDoc = undef;
 
 my $fromDoc = undef;
 my $toDoc = undef;
+
+sub output_align {
+    my ($st_doc, $st_align, $t_doc, $t_align, $_score) = @_;
+
+    if ($currentFromDoc ne $st_doc || $currentToDoc ne $t_doc){
+        if ($currentFromDoc){
+            print "</linkGrp>\n";
+        }
+        print "<linkGrp targType=\"s\" fromDoc=\"$st_doc\" toDoc=\"$t_doc\">\n";
+        $currentFromDoc = $st_doc;
+        $currentToDoc = $t_doc;
+    }
+    if ($scoreattribute && $_score && $calcscore) {
+        printf("  <link xtargets=\"%s;%s\" %s=\"%s\"/>\n", $st_align, $t_align, $scoreattribute, $_score);
+    }
+    else {
+        printf("  <link xtargets=\"%s;%s\" />\n", $st_align, $t_align);
+    }
+}
 
 foreach my $s_doc (sort keys %$links2) {
     if (exists($links1->{$s_doc})) {
@@ -230,13 +255,11 @@ foreach my $s_doc (sort keys %$links2) {
 #                    print STDERR "Multiple target alignments: $s_doc $s_align\n"
 #                }
 
-                # List of alignments to produce
-                my $include = [];
-
                 # Scores for combinations
                 my $al_scores = {};
                 # Whether to do include links based on scores
                 my $score_align = 0;
+                my $lowest_score = undef;
 
                 foreach my $a2 (@talignments) {
 
@@ -255,12 +278,37 @@ foreach my $s_doc (sort keys %$links2) {
                             my $score2 = $scores2->{$s_doc}->{$s_align}->{$a2};
 
                             # Scores are float numbers that may be positive or negative - use addition instead of multiplication
-                            $al_scores->{$a1 . '--' . $a2} = $score1 + $score2;
+                            my $use_score = $score1 + $score2;
+
+                            # Add alignment to prospective output list by default
+                            my $add = 1;
+                            if ($lowest_score) {
+                                if ($use_score < $lowest_score) {
+                                    # Lower score than lowest included
+                                    if (scalar keys %$al_scores >= $topn) {
+                                        # Is not in top N
+                                        $add = 0;
+                                    }
+                                    else {
+                                        # Is in top N - record lowest
+                                        $lowest_score = $use_score;
+                                    }
+                                }
+                            }
+                            else {
+                                # First score - record lowest
+                                $lowest_score = $use_score;
+                            }
+
+                            if ($add) {
+                                $al_scores->{$a1 . '--' . $a2} = $use_score;
+                            }
                         }
                         else {
                             my ($st_doc, $st_align) = split(/:/, $a1);
-
-                            push @$include, [$st_doc, $st_align, $t_doc, $t_align, undef];
+                            
+                            output_align($st_doc, $st_align, $t_doc, $t_align, undef);
+                            # push @$include, [$st_doc, $st_align, $t_doc, $t_align, undef];
                         }
                     }
                 }
@@ -285,27 +333,8 @@ foreach my $s_doc (sort keys %$links2) {
 
                         my $score = $al_scores->{$elem};
 
-                        push @$include, [$st_doc, $st_align, $t_doc, $t_align, $score];
-                    }
-                }
-
-                #print STDERR Dumper $include;
-                foreach my $align (@$include) {
-                    my ($st_doc, $st_align, $t_doc, $t_align, $_score) = @$align;
-
-                    if ($currentFromDoc ne $st_doc || $currentToDoc ne $t_doc){
-                        if ($currentFromDoc){
-                            print "</linkGrp>\n";
-                        }
-                        print "<linkGrp targType=\"s\" fromDoc=\"$st_doc\" toDoc=\"$t_doc\">\n";
-                        $currentFromDoc = $st_doc;
-                        $currentToDoc = $t_doc;
-                    }
-                    if ($scoreattribute && $_score && $calcscore) {
-                        printf("  <link xtargets=\"%s;%s\" %s=\"%s\"/>\n", $st_align, $t_align, $scoreattribute, $_score);
-                    }
-                    else {
-                        printf("  <link xtargets=\"%s;%s\" />\n", $st_align, $t_align);
+                        output_align($st_doc, $st_align, $t_doc, $t_align, undef);
+                        # push @$include, [$st_doc, $st_align, $t_doc, $t_align, $score];
                     }
                 }
             }
@@ -325,6 +354,15 @@ if ($verbose) {
     print STDERR "done\n"
 }
 
+my $end_time = time();
+
+if ($verbose) {
+    printf STDERR ("Elapsed time:\n\n");
+    printf STDERR ("Reading links1: %.2f\n", $l1_time - $begin_time);
+    printf STDERR ("Reading links2: %.2f\n", $l2_time - $l1_time);
+    printf STDERR ("Output: %.2f\n",  $end_time - $l2_time);
+    printf STDERR ("Total elapsed: %.2f\n", $end_time - $begin_time);
+}
 
 sub pivoting_usage {
 

@@ -31,7 +31,7 @@ GetOptions(
     "alignall|a" => \$alignall,
     "emptylinks|e" => \$emptylinks,
     "scoreattribute|t:s" => \$scoreattribute,
-    "scorefilter|s" => \$scorefilter,
+    "scorefilter|f:s" => \$scorefilter,
     "calcscore|c" => \$calcscore,
     "topn|n:i" => \$topn,
     "numlinks|l:i" => \$numlinks,
@@ -88,6 +88,9 @@ if ($verbose) {
         print STDERR "Using scoreattribute: $scoreattribute\n";
         if ($calcscore) {
             print STDERR "Also outputting combined score\n";
+        }
+        if ($scorefilter) {
+            print STDERR "Filtering out scores below $scorefilter\n";
         }
     }
     if ($alignall) {
@@ -243,6 +246,11 @@ sub output_align {
         $currentFromDoc = $st_doc;
         $currentToDoc = $t_doc;
     }
+
+    if ($scorefilter && $_score && $_score < $scorefilter) {
+        return;
+    }
+
     if ($scoreattribute && $_score && $calcscore) {
         printf("  <link xtargets=\"%s;%s\" %s=\"%s\"/>\n", $st_align, $t_align, $scoreattribute, $_score);
     }

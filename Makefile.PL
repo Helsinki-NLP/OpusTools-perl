@@ -10,7 +10,7 @@ name          'OPUS-Tools';
 license       'gpl';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
-version       '0.2.2';
+version       '0.2.3';
 
 install_script 'scripts/opus-cat';
 install_script 'scripts/opus-read';
@@ -30,23 +30,28 @@ install_script 'scripts/alignments/opus-split-align';
 install_script 'scripts/alignments/opus-swap-align';
 install_script 'scripts/alignments/opus-pivoting';
 
-install_script 'scripts/convert/opus-iso639';
-install_script 'scripts/convert/opus2text';
-install_script 'scripts/convert/opus2moses';
+install_script 'scripts/convert/bitext2tmx';
 install_script 'scripts/convert/moses2opus';
+install_script 'scripts/convert/opus-iso639';
+install_script 'scripts/convert/opus2moses';
+install_script 'scripts/convert/opus2multi';
+install_script 'scripts/convert/opus2bitext';
+install_script 'scripts/convert/opus2text';
+install_script 'scripts/convert/opus2tmx';
 install_script 'scripts/convert/tmx2opus';
 install_script 'scripts/convert/tmx2moses';
-install_script 'scripts/convert/opus2multi';
 install_script 'scripts/convert/xml2opus';
-install_script 'scripts/convert/opus2tmx';
-install_script 'scripts/convert/bitext2tmx';
+
+
 
 
 requires 'Archive::Zip'     => 0;
 requires 'CGI'              => 0;
 requires 'Cwd'              => 0;
 requires 'DB_File'          => 0;
+requires 'Getopt::Std'      => 0;
 requires 'HTML::Entities'   => 0;
+requires 'IO::File'         => 0;
 requires 'Lingua::Sentence' => 0;
 requires 'Test::More'       => 0;
 requires 'Ufal::UDPipe'     => 0;

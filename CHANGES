@@ -1,4 +1,9 @@
 
+* v0.2.3
+
+- opus2bitext added (more efficient conversion)
+- various minor bug fixes
+
 * v0.2.2
 
 - opus2tmx and bitext2tmx added

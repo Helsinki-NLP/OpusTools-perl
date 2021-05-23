@@ -62,10 +62,10 @@ while (<F>){
 	my $link=$1;
 	my ($s,$t) = split(/\;/,$link);
 	if ($pivot eq $src1){
-	    $links1{$fromDoc}{$s} = "$toDoc:$t";
+	    $links1{$fromDoc}{$s} = "$toDoc:$t" unless (exists $links1{$fromDoc}{$s});
 	}
 	else{
-	    $links1{$toDoc}{$t} = "$fromDoc:$s";
+	    $links1{$toDoc}{$t} = "$fromDoc:$s" unless (exists $links1{$toDoc}{$t});
 	}
     }
 }
@@ -95,17 +95,20 @@ print '<?xml version="1.0" encoding="utf-8"?>
 <cesAlign version="1.0">
 ';
 
+my %done = ();
 while (<F>){
     if (/fromDoc=\"([^\"]+)\"/){
 	$fromDoc=$1;
     }
     if (/toDoc=\"([^\"]+)\"/){
 	$toDoc=$1;
+	%done = ();
     }
     if (/xtargets=\"([^\"]+)\"/){
 	my $link=$1;
 	my ($s,$t) = split(/\;/,$link);
 	if ($pivot eq $src2){
+	    next if (exists $done{$s});
 	    if (exists $links1{$fromDoc}){
 		if (exists $links1{$fromDoc}{$s}){
 		    my ($from,$src) = split(/\:/,$links1{$fromDoc}{$s});
@@ -118,10 +121,12 @@ while (<F>){
 			$currentToDoc = $toDoc;
 		    }
 		    print '  <link xtargets="',$src,';',$t,'" />',"\n";
+		    $done{$s}=1;
 		}
 	    }
 	}
 	else{
+	    next if (exists $done{$t});
 	    if (exists $links1{$toDoc}){
 		if (exists $links1{$toDoc}{$t}){
 		    my ($from,$src) = split(/\:/,$links1{$toDoc}{$t});
@@ -134,6 +139,7 @@ while (<F>){
 			$currentToDoc = $fromDoc;
 		    }
 		    print '  <link xtargets="',$src,';',$s,'" />',"\n";
+		    $done{$t}=1;
 		}
 	    }
 	}

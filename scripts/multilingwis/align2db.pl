@@ -75,7 +75,7 @@ while (<S>){
     ## (need to check srclang and trglang first)
     if ($first){
 	my $DBFile = $opt_d || "$srclang-$trglang.db";
-	my $db = tie %alg, 'DB_File', $DBFile;
+	my $db = tie %alg, 'DB_File', $DBFile, O_CREAT|O_RDWR, 0666, $DB_BTREE;
 	$db->Filter_Push('utf8');
 	$first = 0;
     }

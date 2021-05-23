@@ -7,7 +7,7 @@ use lib $Bin. '/../lib';
 use Test::More;
 use File::Compare;
 
-my $SCRIPTS = $Bin.'/../scripts';
+my $SCRIPTS = $Bin.'/../scripts/convert';
 my $DATA    = $Bin.'/xml';
 
 my $null = "2> /dev/null >/dev/null";

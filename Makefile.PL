@@ -1,13 +1,13 @@
+use lib '.';
 use inc::Module::Install;
 
-use Cwd;
-use File::Copy;
-
-use lib 'lib';
+# use Cwd;
+# use File::Copy;
+# use lib 'lib';
 # use OPUS::Tools;
 
 name          'OPUS-Tools';
-license       'gpl';
+license       'mit';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
 version       '0.2.3';
@@ -40,8 +40,8 @@ install_script 'scripts/convert/opus2text';
 install_script 'scripts/convert/opus2tmx';
 install_script 'scripts/convert/tmx2opus';
 install_script 'scripts/convert/tmx2moses';
+install_script 'scripts/convert/tsv2opus';
 install_script 'scripts/convert/xml2opus';
-
 
 
 

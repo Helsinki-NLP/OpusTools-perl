@@ -4,27 +4,11 @@
 
 =head1 NAME
 
-opus2moses - convert aligned plain text files into OPUS XML
+tsv2opus
 
 =head1 USAGE
 
- # read sentence alignments and print aligned sentences
- opus2moses [-b outbase] srcfile trgfile > alignfile.xml
- opus2moses -s srclang -t trglang [-b outbase] srcfile trgfile > alignfile.xml
- opus2moses -s srclang -t trglang [-b outbase] bitextfile > alignfile.xml
-
 =head1 OPTIONS
-
- -b outbase ........ basename of output files
- -m maxsize ........ split into several parts of size <maxsize>
- -s srclang ........ language ID of source language (2-letter code)
- -t srclang ........ language ID of target language (2-letter code)
- -z ................ compress output files (gzip)
- -p size ........... split into parts of size p
- -l file ........... link likelihood file (one line per alignment)
- -d ................ distance instead of link likelihood
- -D ................ document boundaries by empty lines
- -M size ........... minimum size of a document (by nr of sentences)
 
 =head1 DESCRIPTION
 
@@ -74,68 +58,43 @@ use Locale::Language;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M);
+use vars qw($opt_r $opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M);
 use Getopt::Std;
-getopts('dDs:t:b:zp:l:M:');
-
-
-my $srcfile = shift(@ARGV);
-my $trgfile = shift(@ARGV);
-
-my $moses = 1 if ($trgfile);
+getopts('dDrs:t:b:zp:l:M:');
 
 my $srclang  = $opt_s || 'xx';
 my $trglang  = $opt_t || 'yy';
-my $filebase = $opt_b;
+my $filebase = $opt_b || 'corpus';
 my $maxsize  = $opt_p;          # split into parts of size <p>
+my $part     = $maxsize || $opt_D ? 1 : 0;
 
-unless ($opt_b){
-    $filebase = $srcfile;
-    $filebase=~s/\..{2,4}$//;
+binmode(STDIN,":encoding(utf-8)");
+
+if ($opt_r){
+    $srclang=~s/\_.*$// unless ($srclang=~/^zh/);
+    $trglang=~s/\_.*$// unless ($trglang=~/^zh/);
 }
 
-my $part = $maxsize || $opt_D ? 1 : 0;
-
-
-## open input files
-if ($srcfile=~/\.gz/){
-    open S,"gzip -cd <$srcfile |" || die "cannot read from $srcfile!\n";
-}
-else{
-    open S,"<$srcfile" || die "cannot read from $srcfile!\n";
-}
-if ($moses){
-    if ($trgfile=~/\.gz/){
-	open T,"gzip -cd <$trgfile |" || die "cannot read from $trgfile!\n";
-    }
-    else{
-	open T,"<$trgfile" || die "cannot read from $trgfile!\n";
-    }
-}
-binmode(S,":encoding(utf-8)");
-binmode(T,":encoding(utf-8)");
-
-## file with link likelihoods
-if ($opt_l){
-    if ($opt_l=~/\.gz/){
-	open L,"gzip -cd <$opt_l |" || die "cannot read from $opt_l!\n";
-    }
-    else{
-	open L,"<$opt_l" || die "cannot read from $opt_l!\n";
-    }
-}
+my $algdir = $srclang gt $trglang ? "$trglang-$srclang" : "$srclang-$trglang";
+my $algfile = $opt_z ? $algdir.'/'.$filebase.'.xml.gz' : $algdir.'/'.$filebase.'.xml';
+system('mkdir -p '.$algdir);
+my $AlgOut = $opt_z ? IO::File->new("| gzip -c > $algfile") : IO::File->new(">$algfile");
 
 
 ## print align file header
-print '<?xml version="1.0" encoding="utf-8"?>
+print $AlgOut '<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
 <cesAlign version="1.0">
 ';
+
 
 my ($SrcWriter,$TrgWriter) = open_output($filebase,$srclang,$trglang,$part);
 
 ## only allow 2-letter codes, fallbak to English
 my ($srcSplitLang,$trgSplitLang) = ($srclang,$trglang);
+
+$srcSplitLang =~s/\_.*$//;
+$trgSplitLang =~s/\_.*$//;
 $srcSplitLang = 'en' unless ($srclang=~/^..$/);
 $trgSplitLang = 'en' unless ($trglang=~/^..$/);
 
@@ -148,19 +107,10 @@ my $TrgSplitter = Lingua::Sentence->new($trgSplitLang);
 ## read the corpus and convert
 my $sid = 0;
 my $lid = 0;
-while (<S>){
+while (<>){
     chomp;
+    my ($src,$trg,$score) = split(/\t/);
 
-    my $src = $_;
-    my $trg;
-
-    if ($moses){
-	$trg = <T>;
-	chomp $trg;
-    }
-    else{
-	($src,$trg) = split(/ \|\|\| /,$src);
-    }
 
     ## document boundary? add a new paragraph or a new document
     if ($src eq '' && $trg eq ''){
@@ -203,25 +153,23 @@ while (<S>){
     my @TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents);
 
     $lid++;
-    print '<link xtargets="';
-    print join(' ',@SrcIds);
-    print ';';
-    print join(' ',@TrgIds);
-    print '" id="SL'.$lid;
+    print $AlgOut '<link xtargets="';
+    print $AlgOut join(' ',@SrcIds);
+    print $AlgOut ';';
+    print $AlgOut join(' ',@TrgIds);
+    print $AlgOut '" id="SL'.$lid;
+
     ## add certainty if likelihood file is given
-    if ($opt_l){
-	my $prob = <L>;
-	chomp $prob;
-	$prob = 1-$prob if ($opt_d);
-	print '" certainty="'.$prob;
+    if ($score){
+	print $AlgOut '" score="'.$score;
     }
-    print '"/>',"\n";
+    print $AlgOut '"/>',"\n";
     print STDERR '.' if (! ($lid % 1000));
     print STDERR " $lid\n" if (! ($lid % 50000));
 }
 
 close_output($SrcWriter,$TrgWriter);
-print "</cesAlign>\n";
+print $AlgOut "</cesAlign>\n";
 
 
 
@@ -270,18 +218,18 @@ sub open_output{
     $TrgWriter->xmlDecl("UTF-8");
     $TrgWriter->startTag("text");
 
-    print "<linkGrp targType=\"s\" fromDoc=\"$srcxml.gz\" toDoc=\"$trgxml.gz\" >\n";
+    print $AlgOut "<linkGrp targType=\"s\" fromDoc=\"$srcxml.gz\" toDoc=\"$trgxml.gz\" >\n";
 
     return ($SrcWriter,$TrgWriter);
 }
 
 sub close_output{
-    my ($SrcWriter,$Trgwriter) = @_;
+    my ($SrcWriter,$TrgWriter) = @_;
     $SrcWriter->endTag('text');
     $TrgWriter->endTag('text');
     $SrcWriter->end();
     $TrgWriter->end();
-    print "  </linkGrp>\n";
+    print $AlgOut "  </linkGrp>\n";
 }
 
 

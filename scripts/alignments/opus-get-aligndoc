@@ -1,0 +1,15 @@
+#!/usr/bin/env perl
+#
+#-*-perl-*-
+#
+
+my $docname = shift(@ARGV);
+
+my $found = 0;
+while (<>){
+    $found = 1 if (/fromDoc=\"$docname\"/);
+    $found = 1 if (/toDoc=\"$docname\"/);
+    print if ($found);
+    last if ($found && /\<\/linkGrp\>/);
+}
+

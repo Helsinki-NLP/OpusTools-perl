@@ -47,6 +47,8 @@ use File::Basename qw/dirname basename/;
 use XML::Parser;
 use XML::Writer;
 
+# use Devel::Leak;
+
 ## all options from opus2moses
 ## How much do we want to be compatible?
 use vars qw($opt_1 $opt_b $opt_c $opt_C $opt_d $opt_D $opt_e $opt_E $opt_f $opt_h 
@@ -78,6 +80,11 @@ my $TrgOut = IO::File->new($opt_f, '>:utf8') if ($opt_f);
 
 my $count = 0;
 my $readmax = $opt_x;
+
+# my $handle;
+# my $count = Devel::Leak::NoteSV($handle);
+# print STDERR "devel leak $count";
+
 while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links, 
 		      '-include-empty'   => $opt_E,
 		      '-one-to-one'      => $opt_1,
@@ -114,7 +121,11 @@ while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links,
     &print_bitext(\@Links,\@SrcSents,\@TrgSents,\%SrcIdx,\%TrgIdx,$SrcOut,$TrgOut);
     &print_linkgrp($XmlWriter,$SrcDoc,$TrgDoc,\@Links) if ($opt_b);
 
+    # my $count = Devel::Leak::NoteSV($handle);
+    # print STDERR "devel leak $count";
+
     $count += scalar @Links;
+    @Links = ();
     if ($opt_x){
 	last if ($count>=$opt_x);
 	$readmax = $opt_x - $count;
@@ -224,8 +235,16 @@ sub read_sentences{
 	    die $@;
 	}
 	## assume that we're done if there are enough sentences in the buffer
-	return if (scalar(@{$sents}) eq $NrOfSents);
+	if (scalar(@{$sents}) eq $NrOfSents){
+	    eval { $XmlHandler->parse_done };
+	    undef $XmlHandler;
+	    undef $XmlParser;
+	    return;
+	}
     }
+    eval { $XmlHandler->parse_done };
+    undef $XmlHandler;
+    undef $XmlParser;
 }
 
 

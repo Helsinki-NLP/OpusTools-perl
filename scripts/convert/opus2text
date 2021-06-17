@@ -56,11 +56,23 @@ binmode(STDIN);
 binmode(STDOUT, ":utf8");
 
 my $ErrorCount=0;
+my $firstline=1;
 
 ## use '>' as input delimiter when reading (usually end of XML tag)
 $/='>';
 
 while (<>){
+
+    ## make sure that we start with an XML declaration
+    ## this makes it possible to call this tool on data splitd
+    ## (for example, produced by GNU parallel)
+    if ($firstline){
+	unless (/<\?xml/){
+	    $_ = '<?xml version="1.0" encoding="UTF-8"?><text>'.$_;
+	}
+	$firstline = 0;
+    }
+
     ## new document!
     if (/<\?xml/){
 	## delete everything before the XML declaration

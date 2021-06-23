@@ -30,6 +30,10 @@
 #   -E ............... also include empty alignments (1:0 etc)
 #   -D ............... add document boundaries (empty line)
 #
+# counting only (for info files)
+#
+#   -I ............... only provide bitext counts
+#
 # other differences to opus2moses:
 #  - no length filtering
 #
@@ -52,11 +56,11 @@ use XML::Writer;
 ## all options from opus2moses
 ## How much do we want to be compatible?
 use vars qw($opt_1 $opt_b $opt_c $opt_C $opt_d $opt_D $opt_e $opt_E $opt_f $opt_h 
-            $opt_i $opt_l $opt_m $opt_M $opt_n $opt_p $opt_r 
+            $opt_I $opt_i $opt_l $opt_m $opt_M $opt_n $opt_p $opt_r 
             $opt_s $opt_S $opt_t $opt_u $opt_U $opt_v $opt_w $opt_W $opt_x);
 use Getopt::Std;
 
-getopts('b:c:C:s:t:d:Dn:ie:Ef:hp:l1x:u:U:vw:W:rmMS');
+getopts('b:c:C:s:t:d:Dn:iIe:Ef:hp:l1x:u:U:vw:W:rmMS');
 
 my $CorpusDir = $opt_d || '.';
 
@@ -85,6 +89,15 @@ my $readmax = $opt_x;
 # my $count = Devel::Leak::NoteSV($handle);
 # print STDERR "devel leak $count";
 
+my $countLinkGroups = 0;
+my $countTUs = 0;
+my $countSrcSents = 0;
+my $countTrgSents = 0;
+my $countSrcWords = 0;
+my $countTrgWords = 0;
+
+my $lastNrOfWords = 0;
+
 while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links, 
 		      '-include-empty'   => $opt_E,
 		      '-one-to-one'      => $opt_1,
@@ -93,6 +106,7 @@ while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links,
 		      '-score-threshold' => $opt_c) ){
 
     next unless ($SrcDoc && $TrgDoc);
+    $countLinkGroups++;
 
     ## skip certain files
     if (&skip_file($opt_n, $SrcDoc, $TrgDoc, $opt_i)){
@@ -106,16 +120,23 @@ while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links,
     my %TrgInLink = ();
     &get_linked_sentids(\@Links, \%SrcInLink, \%TrgInLink);
 
+    ## update counts for translation units and number of sentences
+    $countTUs += scalar @Links;
+    $countSrcSents += scalar keys %SrcInLink;
+    $countTrgSents += scalar keys %TrgInLink;
+
     my @SrcSents = ();
     my @TrgSents = ();
     my %SrcIdx = ();
     my %TrgIdx = ();
 
     print STDERR "read ",scalar(keys %SrcInLink)," sentences from $SrcDoc\n";
-    &read_sentences($SrcDoc, $CorpusDir, \%SrcInLink, \@SrcSents, \%SrcIdx);
+    $countSrcWords += &read_sentences($SrcDoc, $CorpusDir, \%SrcInLink, \@SrcSents, \%SrcIdx);
 
     print STDERR "read ",scalar(keys %TrgInLink)," sentences from $TrgDoc\n";
-    &read_sentences($TrgDoc, $CorpusDir, \%TrgInLink, \@TrgSents, \%TrgIdx);
+    $countTrgWords += &read_sentences($TrgDoc, $CorpusDir, \%TrgInLink, \@TrgSents, \%TrgIdx);
+
+    next if ($opt_I);
 
     print STDERR "print bitext\n";
     &print_bitext(\@Links,\@SrcSents,\@TrgSents,\%SrcIdx,\%TrgIdx,$SrcOut,$TrgOut);
@@ -142,7 +163,12 @@ $TrgOut->close() if ($opt_f);
 
 &close_cesalign($XmlWriter) if ($opt_b);
 
-
+if ($opt_I){
+    print $countLinkGroups,"\n";
+    print $countTUs,"\n";
+    print $countSrcWords,"\n";
+    print $countTrgWords,"\n";
+}
 
 
 
@@ -214,14 +240,23 @@ sub get_linked_sentids{
 sub read_sentences{
     my ($doc,$dir,$links,$sents,$idx) = @_;
 
-    my $XmlParser = new XML::Parser(Handlers => {Start => \&XmlStart,
-						 Char => \&XmlChar,
-						 End => \&XmlEnd});
+    my $XmlParser;
+    if ($opt_I){
+	$XmlParser = new XML::Parser(Handlers => { Start => \&XmlStart,
+						   End => \&XmlEnd });
+    }
+    else{
+	$XmlParser = new XML::Parser(Handlers => { Start => \&XmlStart,
+						   Char => \&XmlChar,
+						   End => \&XmlEnd});
+    }
     my $XmlHandler = $XmlParser->parse_start;
 
-    $XmlHandler->{__LINKS__} = $links || {};
-    $XmlHandler->{__SENTS__} = $sents || [];
-    $XmlHandler->{__IDX__}   = $idx   || {};
+    $XmlHandler->{__NR_OF_WORDS__} = 0;
+    $XmlHandler->{__NR_OF_SENTS__} = 0;
+    $XmlHandler->{__LINKS__}       = $links || {};
+    $XmlHandler->{__SENTS__}       = $sents || [];
+    $XmlHandler->{__IDX__}         = $idx   || {};
 
     my $fh;
     die "cannot open $doc!\n" unless (&open_opus_document(\$fh,$dir,$doc));
@@ -235,16 +270,26 @@ sub read_sentences{
 	    die $@;
 	}
 	## assume that we're done if there are enough sentences in the buffer
-	if (scalar(@{$sents}) eq $NrOfSents){
+	# if (scalar(@{$sents}) eq $NrOfSents){
+	if ($XmlHandler->{__NR_OF_SENTS__} == $NrOfSents){
+	    my $NrOfWords = $XmlHandler->{__NR_OF_WORDS__};
 	    eval { $XmlHandler->parse_done };
 	    undef $XmlHandler;
 	    undef $XmlParser;
-	    return;
+	    return $NrOfWords;
 	}
+	# print STDERR '.' if (! ($XmlHandler->{__NR_OF_SENTS__} % 1000));
+	# print STDERR " $XmlHandler->{__NR_OF_SENTS__}\n" if (! ($XmlHandler->{__NR_OF_SENTS__} % 50000));
     }
+    if ($XmlHandler->{__NR_OF_SENTS__} != $NrOfSents){
+	print STDERR "Missing sentences! Found $XmlHandler->{__NR_OF_SENTS__}/$NrOfSents\n";
+    }
+
+    my $NrOfWords = $XmlHandler->{__NR_OF_WORDS__};
     eval { $XmlHandler->parse_done };
     undef $XmlHandler;
     undef $XmlParser;
+    return $NrOfWords;
 }
 
 
@@ -285,8 +330,8 @@ sub read_linkgrp{
     $parser->{__EOD__}    = 0;
 
     while (<>){
-	## fix un-escaped XML entities (do we need this?)
-	s/&(?!(#\d+|\w+);)/&amp;/gs;
+	### fix un-escaped XML entities (do we need this?)
+	# s/&(?!(#\d+|\w+);)/&amp;/gs;
 	eval { $parser->parse_more($_); };
 	if ($@){
 	    print STDERR $_;
@@ -305,10 +350,21 @@ sub read_linkgrp{
 sub XmlStart{
     my ($p,$e,%a)=@_;
 
-    if ($e eq 's'){
+    ## only count words with option -I
+    if ($opt_I){
+	if ($e eq 's'){
+	    if (exists $p->{__LINKS__}->{$a{id}}){
+		$p->{__SENTID__} = $a{id};
+	    }
+	}
+	elsif (($e eq 'w') && $p->{__SENTID__}){
+	    $_[0]->{__NR_OF_WORDS__}++
+	}
+    }
+    elsif ($e eq 's'){
 	if (exists $p->{__LINKS__}->{$a{id}}){
-	    $p->{__SENT__}    = "";
 	    $p->{__SENTID__}  = $a{id};
+	    $p->{__SENT__}    = "";
 	    %{$p->{__ATTR__}} = %a;
 	}
     }
@@ -318,11 +374,23 @@ sub XmlEnd{
     if ($_[1] eq 's'){
 	## some more filtering, for example on langID?
 	if (exists $_[0]->{__SENTID__}){
-	    $_[0]->{__SENT__}=~s/\s+/ /gs;
-	    $_[0]->{__SENT__}=~s/^\s+//;
-	    $_[0]->{__SENT__}=~s/\s+$//s;
-	    push(@{$_[0]->{__SENTS__}}, $_[0]->{__SENT__});
-	    $_[0]->{__IDX__}->{$_[0]->{__SENTID__}} = $#{$_[0]->{__SENTS__}};
+	    unless ($opt_I){
+		$_[0]->{__SENT__}=~s/\s+/ /gs;
+		$_[0]->{__SENT__}=~s/^\s+//;
+		$_[0]->{__SENT__}=~s/\s+$//s;
+		push(@{$_[0]->{__SENTS__}}, $_[0]->{__SENT__});
+		$_[0]->{__IDX__}->{$_[0]->{__SENTID__}} = $#{$_[0]->{__SENTS__}};
+	    }
+	    $_[0]->{__NR_OF_SENTS__}++;
+	    if ($opt_v && $opt_I){
+		if (! ($_[0]->{__NR_OF_SENTS__} % 25000)) {
+		print STDERR "$_[0]->{__NR_OF_WORDS__}/$_[0]->{__NR_OF_SENTS__}\n";
+		}
+		if ($_[0]->{__NR_OF_WORDS__} == $lastNrOfWords){
+		    print STDERR "no words found in $_[0]->{__SENTID__}\n";
+		    $lastNrOfWords = $_[0]->{__NR_OF_WORDS__};
+		}
+	    }
 	    delete $_[0]->{__SENTID__};
 	}
     }

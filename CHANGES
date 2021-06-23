@@ -3,6 +3,7 @@
 
 - opus2bitext added (more efficient conversion)
 - various minor bug fixes
+- opus2bitext can also be used for counting
 
 * v0.2.2
 

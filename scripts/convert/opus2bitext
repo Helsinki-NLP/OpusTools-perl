@@ -350,7 +350,7 @@ sub read_linkgrp{
 sub XmlStart{
     my ($p,$e,%a)=@_;
 
-    ## only count words with option -I
+    ## count words with option -I
     if ($opt_I){
 	if ($e eq 's'){
 	    if (exists $p->{__LINKS__}->{$a{id}}){
@@ -361,6 +361,8 @@ sub XmlStart{
 	    $_[0]->{__NR_OF_WORDS__}++
 	}
     }
+
+    ## otherwise: initialise a new sentence
     elsif ($e eq 's'){
 	if (exists $p->{__LINKS__}->{$a{id}}){
 	    $p->{__SENTID__}  = $a{id};
@@ -369,6 +371,8 @@ sub XmlStart{
 	}
     }
 }
+
+
 
 sub XmlEnd{
     if ($_[1] eq 's'){
@@ -382,15 +386,29 @@ sub XmlEnd{
 		$_[0]->{__IDX__}->{$_[0]->{__SENTID__}} = $#{$_[0]->{__SENTS__}};
 	    }
 	    $_[0]->{__NR_OF_SENTS__}++;
-	    if ($opt_v && $opt_I){
-		if (! ($_[0]->{__NR_OF_SENTS__} % 25000)) {
-		print STDERR "$_[0]->{__NR_OF_WORDS__}/$_[0]->{__NR_OF_SENTS__}\n";
+
+	    ## print progress in verbose mode
+	    if ($opt_v){
+		if ($_[0]->{__NR_OF_WORDS__}){
+		    if (! ($_[0]->{__NR_OF_SENTS__} % 25000)) {
+			print STDERR "$_[0]->{__NR_OF_WORDS__}/$_[0]->{__NR_OF_SENTS__}\n";
+		    }
+		    if ($_[0]->{__NR_OF_WORDS__} == $lastNrOfWords){
+			print STDERR "no words found in $_[0]->{__SENTID__}\n";
+			$lastNrOfWords = $_[0]->{__NR_OF_WORDS__};
+		    }
 		}
-		if ($_[0]->{__NR_OF_WORDS__} == $lastNrOfWords){
-		    print STDERR "no words found in $_[0]->{__SENTID__}\n";
-		    $lastNrOfWords = $_[0]->{__NR_OF_WORDS__};
+		else{
+		    if (! ($_[0]->{__NR_OF_SENTS__} % 5000)) {
+			print STDERR ".";
+		    }
+		    if (! ($_[0]->{__NR_OF_SENTS__} % 250000)) {
+			print STDERR "$_[0]->{__NR_OF_SENTS__}\n";
+		    }
 		}
 	    }
+
+	    ## delete sentence ID to mark the end of the sentence
 	    delete $_[0]->{__SENTID__};
 	}
     }

@@ -1,0 +1,197 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+
+use strict;
+use XML::Parser;
+use Getopt::Std;
+use OPUS::Tools;
+
+use vars qw/$opt_d/;
+getopts('d:');
+my $CorpusDir = $opt_d || '.';
+
+my $AlignParser = new XML::Parser(Handlers => {Start => \&AlignTagStart,
+					       End => \&AlignTagEnd});
+
+my $AlignHandler = $AlignParser->parse_start;
+
+my $fromDoc = undef;
+my $toDoc = undef;
+my @links = ();
+my $EndOfLinkGrp = undef;
+
+my $countLinkGroups = 0;
+my $countTUs = 0;
+my $countSrcSents = 0;
+my $countTrgSents = 0;
+my $countSrcWords = 0;
+my $countTrgWords = 0;
+
+
+print STDERR "read sentence alignments\n";
+while ( &read_linkgrp($AlignHandler) ){
+
+    if (@links){
+	$countLinkGroups++;
+	$countTUs += @links;
+
+	my %SrcSentIds = ();
+	my %TrgSentIds = ();
+	print STDERR "get sentence IDs from $fromDoc <-> $toDoc\n";
+	&get_linked_sentids(\@links,\%SrcSentIds,\%TrgSentIds);
+	$countSrcSents += scalar %SrcSentIds;
+	$countTrgSents += scalar %TrgSentIds;
+
+	print STDERR "count words in linked sentences from $fromDoc\n";
+	&count_words($fromDoc, $CorpusDir, \%SrcSentIds);
+
+	print STDERR "count words in linked sentences from $toDoc\n";
+	&count_words($toDoc, $CorpusDir, \%TrgSentIds);
+
+	print STDERR "sum up word counts over all bitext segments\n";
+	foreach (@links){
+	    my ($s,$t) = split(/\;/);
+	    foreach (split(/\s+/,$s)){
+		$countSrcWords += $SrcSentIds{$_};
+	    }
+	    foreach (split(/\s+/,$t)){
+		$countTrgWords += $TrgSentIds{$_};
+	    }
+	}
+    }
+}
+
+print $countLinkGroups,"\n";
+print $countTUs,"\n";
+print $countSrcWords,"\n";
+print $countTrgWords,"\n";
+
+
+
+
+
+
+sub read_linkgrp{
+    $EndOfLinkGrp = 0;
+    @links = ();
+    while (<>){
+	eval { $_[0]->parse_more($_); };
+	if ($@){
+	    print STDERR $_;
+	    die $@;
+	}
+	return 1 if ($EndOfLinkGrp);
+    }
+    return $EndOfLinkGrp;
+}
+
+
+sub get_linked_sentids{
+    my ($links, $SrcSentIds, $TrgSentIds) = @_;
+    foreach (@{$links}){
+	my ($s,$t) = split(/\;/);
+	foreach (split(/\s+/,$s)){
+	    $$SrcSentIds{$_}++;
+	}
+	foreach (split(/\s+/,$t)){
+	    $$TrgSentIds{$_}++;
+	}
+    }
+}
+
+
+sub count_words{
+    my ($doc,$dir,$links) = @_;
+
+    my $countdoc = $doc;
+    $countdoc =~s/\.xml\.gz/.counts.gz/;
+    if (-e $dir.'/'.$countdoc){
+	print STDERR "read counts from $countdoc\n";
+	open F,"gzip -cd < $dir/$countdoc |" || die "cannot read from $dir/$countdoc";
+	my $NrOfWords = 0;
+	while (<F>){
+	    chomp;
+	    my ($id,$count) = split(/\t/);
+	    if (exists $$links{$id}){
+		$$links{$id} = $count;
+		$NrOfWords += $count;
+	    }
+	}
+	close F;
+	return $NrOfWords;
+    }
+    return &count_words_from_xml($doc,$dir,$links);
+}
+
+sub count_words_from_xml{
+    my ($doc,$dir,$links) = @_;
+
+    my $XmlParser;
+    $XmlParser = new XML::Parser(Handlers => { Start => \&XmlStart,
+					       End => \&XmlEnd });
+    my $XmlHandler = $XmlParser->parse_start;
+
+    $XmlHandler->{__NR_OF_WORDS__} = 0;
+    $XmlHandler->{__NR_OF_SENTS__} = 0;
+    $XmlHandler->{__SENTIDS__}       = $links || {};
+
+    my $fh;
+    die "cannot open $doc!\n" unless (&open_opus_document(\$fh,$dir,$doc));
+
+    my $NrOfSents = scalar(keys %{$links});
+    while (defined(my $line = $fh->getline())){
+	eval { $XmlHandler->parse_more($line); };
+	die $@ if ($@);
+	if ($XmlHandler->{__NR_OF_SENTS__} == $NrOfSents){
+	    my $NrOfWords = $XmlHandler->{__NR_OF_WORDS__};
+	    eval { $XmlHandler->parse_done };
+	    return $NrOfWords;
+	}
+    }
+    my $NrOfWords = $XmlHandler->{__NR_OF_WORDS__};
+    eval { $XmlHandler->parse_done };
+    return $NrOfWords;
+}
+
+
+
+sub AlignTagStart{
+    my ($p,$e,%a)=@_;
+
+    if ($e eq 'linkGrp'){
+	$fromDoc = $a{fromDoc};
+	$toDoc   = $a{toDoc};
+    }
+    elsif ($e eq 'link'){
+	push(@links,$a{xtargets});
+    }
+}
+
+
+sub AlignTagEnd{
+    $EndOfLinkGrp = 1 if ($_[1] eq 'linkGrp');
+}
+
+
+
+sub XmlStart{
+    my ($p,$e,%a)=@_;
+    if ($e eq 's'){
+	if (exists $p->{__SENTIDS__}->{$a{id}}){
+	    $p->{__SENTID__} = $a{id};
+	    $p->{__SENTIDS__}->{$a{id}} = 0;
+	}
+    }
+    elsif (($e eq 'w') && $p->{__SENTID__}){
+	$p->{__SENTIDS__}->{$p->{__SENTID__}}++
+    }
+}
+
+sub XmlEnd{
+    if ($_[1] eq 's'){
+	if (exists $_[0]->{__SENTID__}){
+	    $_[0]->{__NR_OF_SENTS__}++;
+	    delete $_[0]->{__SENTID__};
+	}
+    }
+}

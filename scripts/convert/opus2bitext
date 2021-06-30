@@ -263,7 +263,7 @@ sub read_sentences{
 
     my $NrOfSents = scalar(keys %{$links});
     while (defined(my $line = $fh->getline())){
-	s/&(?!(#\d+|\w+);)/&amp;/gs;
+	$line=~s/&(?!(#\d+|\w+);)/&amp;/gs;
 	eval { $XmlHandler->parse_more($line); };
 	if ($@){
 	    print STDERR $line;

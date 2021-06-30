@@ -22,6 +22,8 @@ install_script 'scripts/admin/opus-website';
 install_script 'scripts/admin/opusinfo-set';
 install_script 'scripts/admin/opusinfo-refresh';
 install_script 'scripts/admin/opusinfo-delete';
+install_script 'scripts/admin/opus-countwords';
+install_script 'scripts/admin/opus-bitextsize';
 
 install_script 'scripts/alignments/opus-pt2dic';
 install_script 'scripts/alignments/opus-pt2dice';

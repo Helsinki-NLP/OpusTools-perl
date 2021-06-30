@@ -1,0 +1,73 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+
+use strict;
+use XML::Parser;
+
+my $XmlParser;
+my $XmlHandler;
+
+binmode(STDIN);
+
+my $ErrorCount = 0;
+my $firstline = 1;
+my $SentID    = undef;
+my $NrSents   = 0;
+my $NrWords   = 0;
+
+## use '>' as input delimiter when reading (usually end of XML tag)
+$/='>';
+
+while (<>){
+
+    ## make sure that we start with an XML declaration
+    ## this makes it possible to call this tool on data splitd
+    ## (for example, produced by GNU parallel)
+    if ($firstline){
+	unless (/<\?xml/){
+	    $_ = '<?xml version="1.0" encoding="UTF-8"?><text>'.$_;
+	}
+	$firstline = 0;
+    }
+
+    ## new document!
+    if (/<\?xml/){
+	## delete everything before the XML declaration
+	s/^.*(<\?xml)/$1/s;
+	$XmlParser = new XML::Parser(Handlers => { Start => \&XmlTagStart,
+						   End => \&XmlTagEnd} );
+	$XmlHandler->parse_done if ($XmlHandler);
+	$XmlHandler = $XmlParser->parse_start;
+	print "\n";    # newlines between documents
+    }
+
+    s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g;     ## remove control characters
+    s/&(?!(#\d+|\w+);)/&amp;/g;            ## fix un-escaped XML entities
+
+    eval { $XmlHandler->parse_more($_); };
+    if ($@){
+	$ErrorCount++;
+#	warn $@;              # skip millions of warnings!
+#	print STDERR $_;
+    }
+}
+
+print STDERR "$ErrorCount errors found!" if ($ErrorCount);
+
+sub XmlTagStart{
+    my ($p,$e,%a)=@_;
+    if ($e eq 's'){
+	$NrSents++;
+	$SentID = $a{id};
+	$NrWords = 0;
+    }
+    elsif ($e eq 'w'){
+	$NrWords++;
+    }
+}
+
+sub XmlTagEnd{
+    if ($_[1] eq 's'){
+	print $SentID,"\t",$NrWords,"\n";
+    }
+}

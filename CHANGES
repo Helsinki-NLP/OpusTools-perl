@@ -4,6 +4,7 @@
 - opus2bitext added (more efficient conversion)
 - various minor bug fixes
 - opus2bitext can also be used for counting
+- admin scripts: opus-countwords and opus-bitextsize
 
 * v0.2.2
 

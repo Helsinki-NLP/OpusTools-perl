@@ -49,8 +49,8 @@ See also OPUS L<http://opus.nlpl.eu> for more information about the corpus.
 use XML::Parser;
 
 
-my $XmlParser;
-my $XmlHandler;
+my $XmlParser = undef;
+my $XmlHandler = undef;
 
 binmode(STDIN);
 binmode(STDOUT, ":utf8");
@@ -80,6 +80,7 @@ while (<>){
 	$XmlParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
 						  End => \&XmlTagEnd,
 						  Char => \&XmlChar});
+	$XmlHandler->parse_done if ($XmlHandler);
 	$XmlHandler = $XmlParser->parse_start;
     }
 

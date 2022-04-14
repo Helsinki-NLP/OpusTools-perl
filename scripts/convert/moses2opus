@@ -15,6 +15,8 @@ opus2moses - convert aligned plain text files into OPUS XML
 
 =head1 OPTIONS
 
+ -e ................ skip empty alignments
+ -c ................ do some basic cleanup on incoming text
  -b outbase ........ basename of output files
  -m maxsize ........ split into several parts of size <maxsize>
  -s srclang ........ language ID of source language (2-letter code)
@@ -74,9 +76,9 @@ use Locale::Language;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M);
+use vars qw($opt_c $opt_e $opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M);
 use Getopt::Std;
-getopts('dDs:t:b:zp:l:M:');
+getopts('cdDes:t:b:zp:l:M:');
 
 
 my $srcfile = shift(@ARGV);
@@ -162,6 +164,11 @@ while (<S>){
 	($src,$trg) = split(/ \|\|\| /,$src);
     }
 
+    if ($opt_c){
+	&cleanup_text($src);
+	&cleanup_text($trg);
+    }
+
     ## document boundary? add a new paragraph or a new document
     if ($src eq '' && $trg eq ''){
 	if ($opt_D){
@@ -198,6 +205,8 @@ while (<S>){
     my @SrcSents = $SrcSplitter->split_array($src);
     my @TrgSents = $TrgSplitter->split_array($trg);
 
+    ## skip empty alignments if -e is set
+    next if ($opt_e && ((not @SrcSents) || (not @TrgSents)));
 
     my @SrcIds = write_sentences($SrcWriter,$sid,\@SrcSents);
     my @TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents);
@@ -289,11 +298,13 @@ sub close_output{
 sub write_sentences{
     my ($writer,$id,$sents) = @_;
 
+    return () unless @{$sents};
     my @ids = ();
     if ( $#{$sents} ){
 	$writer->startTag('p','id' => "p$id");
 	my $sid = 0;
 	foreach my $s (@{$sents}){
+	    next unless ($s);
 	    $sid++;
 	    $writer->startTag('s','id'=>$id.'.'.$sid);
 	    $writer->characters($s);
@@ -303,6 +314,7 @@ sub write_sentences{
 	$writer->endTag('p');
     }
     else{
+	next unless ($$sents[0]);
 	$writer->startTag('s','id'=>$id);
 	$writer->characters($$sents[0]);
 	$writer->endTag('s');
@@ -312,3 +324,9 @@ sub write_sentences{
 }
 
 
+sub cleanup_text{
+    $_[0]=~tr[\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}][]cd;
+    $_[0]=~s/[\p{C}-[\n\t]]/ /g;
+    $_[0]-~s/^\s*//;
+    $_[0]-~s/\s*$//;
+}

@@ -1,0 +1,246 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+opus-pivoting - extract transitive sentence links via pivot language
+
+=head1 USAGE
+
+  opus-pivoting [OPTIONS] src2pivot-align-file pivot2trg-align-file > output
+
+=head1 OPTIONS
+
+   -a ........... all transitive links (default is only the best one)
+   -s <score> ... score threshold (ignore all links below that score in either part)
+
+=head1 DESCRIPTION
+
+C<opus-pivoting> reads sentence alignment files in XCES align format and creates links between source and target language via some shared pivot language. The script expects that the input files have a name that specifies the language pairs they cover. The file names need to be of a format like this:
+
+  src-pivot.xml.gz
+  pivot-trg.xml.gz
+
+with C<src>, C<trg> and C<pivot> referring to language IDs. The order can be arbitrary (i.e. C<pivot-src.xml.gz> and C<trg-pivot.xml.gz> are also valid but the name must, of course, correspond to the order of the links inside of those files). The output is also formatted in XCES Align format and includes scores as additional attributes to each link (this is non-standard for XCES Align).
+
+The default mode only takes the best link for each pivot segment. Use option C<-a> to obtain all combinations of source and target sentences that are linked through the same pivot language segment. A score thresholds can be used to restrict the links that are restricted. This assumes that the input files have some kind of score attribute. The threshold has to be met for both links (source-to-pivot and pivot-to-target).
+
+The script requires C<GNU sort> or some compatible tool available on your system and in your path!
+
+=head1 TODO
+
+Add options to control sort parameters. Use proper temporary files and directories for temporary data.
+
+=cut
+
+
+use File::Basename;
+use IO::File;
+use XML::Parser;
+use XML::Writer;
+
+use vars qw($opt_a $opt_s);
+use Getopt::Std;
+getopts('as:');
+
+
+
+my $algfile1 = shift(@ARGV);
+my $algfile2 = shift(@ARGV);
+
+
+## get language IDs from the file names
+
+my $base1 = basename($algfile1);
+my $base2 = basename($algfile2);
+
+$base1=~s/\.xml(\.gz)?//;
+$base2=~s/\.xml(\.gz)?//;
+
+my ($src,$trg);
+my ($rev1,$rev2) = (0,0);
+
+my ($src1,$trg1) = split(/\-/,$base1);
+my ($src2,$trg2) = split(/\-/,$base2);
+
+
+## find the pivot languages
+
+my $pivot = undef;
+if ($src1 eq $src2){
+    $pivot = $src1;
+    ($src, $trg) = ($trg1, $trg2);
+}
+elsif ($src1 eq $trg2){
+    $pivot = $src1;
+    ($src, $trg) = ($trg1, $src2);
+    $rev2 = 1;
+}
+elsif ($trg1 eq $src2){
+    $pivot = $trg1;
+    ($src, $trg) = ($src1, $trg2);
+    $rev1 = 1;
+}
+elsif ($trg1 eq $trg2){
+    $pivot = $trg1;
+    ($src, $trg) = ($src1, $src2);
+    $rev1 = 1;
+    $rev2 = 1;
+}
+else{
+    die "no pivot language found";
+}
+
+print STDERR "get links from $src to $trg via $pivot\n";
+
+
+## get all links from the alignment file
+## and store them in a temporary file
+
+print STDERR "extract links from $algfile1\n";
+my ($linkfile1, $pivotDoc1, $fromDoc) = &extract_links($algfile1,$rev1);
+print STDERR "extract links from $algfile2\n";
+my ($linkfile2, $pivotDoc2, $toDoc) = &extract_links($algfile2,$rev2);
+
+
+
+## merge the sorted linkfiles and extract transitive links
+## print links to stdout in XCES-align-like format
+
+print STDERR "merge links from '$fromDoc' to '$toDoc' via pivot '$pivotDoc1'\n";
+
+open S,"<$linkfile1" || die "cannot read from $linkfile1";
+open T,"<$linkfile2" || die "cannot read from $linkfile2";
+
+my $XmlWriter = XML::Writer->new( DATA_MODE => 1, DATA_INDENT => 1 );
+$XmlWriter->xmlDecl("UTF-8");
+$XmlWriter->doctype('cesAlign', "-//CES//DTD XML cesAlign//EN", "");
+$XmlWriter->startTag('cesAlign','version' => '1.0');
+$XmlWriter->startTag('linkGrp',
+		     'targType' => 's',
+		     'fromDoc'  => $fromDoc,
+		     'toDoc'    => $toDoc);
+
+
+my $line = <T>;
+chomp($line);
+my ($alg2_score, $alg2_pivot, $alg2_links) = split(/\t/);
+
+my $LinkID=0;
+my $LastPivot;
+
+while (<S>){
+    my ($alg1_score, $alg1_pivot, $alg1_links) = split(/\t/);
+    while ($alg2_pivot lt $alg1_pivot){
+	last unless ($line = <T>);
+	($alg2_score, $alg2_pivot, $alg2_links) = split(/\t/, $line);
+    }
+    if ($alg2_pivot eq $alg1_pivot){
+	if ($opt_s){
+	    next if ($alg1_score < $opt_s);
+	    next if ($alg2_score < $opt_s);
+	}
+	unless ($opt_a){
+	    next if ($alg1_pivot eq $LastPivot);
+	}
+	chomp($alg1_links);
+	chomp($alg2_links);
+	$LinkID++;
+	$LastPivot = $alg1_pivot;
+	my $AvgScore = ($alg1_score + $alg2_score)/2;
+	$XmlWriter->emptyTag( 'link',
+			      'id' => 'L'.$LinkID,
+			      'xtargets' => join(';',($alg1_links,$alg2_links)),
+			      's2p_score' => $alg1_score,
+			      'p2t_score' => $alg2_score,
+			      'score' => $AvgScore );
+	# print "$alg1_links\t$alg2_links\t$alg1_score\t$alg2_score\n";	
+    }
+}
+
+$XmlWriter->endTag('linkGrp');
+$XmlWriter->endTag('cesAlign');
+
+close S;
+close T;
+
+
+
+## cleanup
+
+unlink($linkfile1);
+unlink($linkfile2);
+
+unlink($linkfile1.'.sorted');
+unlink($linkfile2.'.sorted');
+
+
+
+
+sub extract_links{
+    my $algfile = shift;
+    my $reverse = shift;
+
+    if ($algfile=~/\.gz/){
+	open(I,"gzip -cd < $algfile |") || die "cannot read from $algfile";
+    }
+    else{
+	open(I,"<$algfile") || die "cannot read from $algfile";
+    }
+
+    my $XMLParser = new XML::Parser(Handlers => {Start => \&XmlTagStart});
+    my $XMLHandler = $XMLParser->parse_start;
+
+    ## TODO: use proper tmpfile
+    my $linkfile = $algfile.'.links';
+    $XMLHandler->{OUT} = IO::File->new("| sort -k2,2 -k1,1nr > $linkfile");
+    $XMLHandler->{REVERSE} = $reverse;
+
+    while (<I>){
+	eval { $XMLHandler->parse_more($_); };
+	if ($@){
+	    print STDERR $_;
+	    die $@;
+	}
+    }
+    my ($fromDoc, $toDoc) = ($XMLHandler->{FROMDOC}, $XMLHandler->{TODOC});
+    $XMLHandler->parse_done();
+    close $XMLHandler->{OUT};
+    close I;
+    return ($linkfile, $fromDoc, $toDoc);
+
+}
+
+
+sub XmlTagStart{
+    my ($p,$e,%a)=@_;
+    if ($e eq 'link'){
+	my ($s,$t) = split(/\;/, $a{xtargets});
+	my $score = 0;
+	my ($ScoreAttr) = grep(/(score|certainty|likelihood|prob)/,keys %a);
+	if ($ScoreAttr){
+	    if (defined $a{$ScoreAttr}){
+		$score = $a{$ScoreAttr};
+	    }
+	}
+	my $fh = $p->{OUT};
+	if ($p->{REVERSE}){
+	    print $fh "$score\t$t\t$s\n";
+	}
+	else{
+	    print $fh "$score\t$s\t$t\n";
+	}
+    }
+    elsif ($e eq 'linkGrp'){
+	if ($p->{REVERSE}){
+	    $p->{FROMDOC} = $a{toDoc};
+	    $p->{TODOC} = $a{fromDoc};
+	}
+	else{
+	    $p->{FROMDOC} = $a{fromDoc};
+	    $p->{TODOC} = $a{toDoc};
+	}
+    }
+}
+

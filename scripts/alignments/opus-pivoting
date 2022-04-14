@@ -36,7 +36,9 @@ Add options to control sort parameters. Use proper temporary files and directori
 
 
 use File::Basename;
+use File::Temp qw/ tempfile /;
 use IO::File;
+
 use XML::Parser;
 use XML::Writer;
 
@@ -172,9 +174,6 @@ close T;
 unlink($linkfile1);
 unlink($linkfile2);
 
-unlink($linkfile1.'.sorted');
-unlink($linkfile2.'.sorted');
-
 
 
 
@@ -192,8 +191,8 @@ sub extract_links{
     my $XMLParser = new XML::Parser(Handlers => {Start => \&XmlTagStart});
     my $XMLHandler = $XMLParser->parse_start;
 
-    ## TODO: use proper tmpfile
-    my $linkfile = $algfile.'.links';
+    my ($fh, $linkfile) = tempfile();
+    close $fh;
     $XMLHandler->{OUT} = IO::File->new("| sort -k2,2 -k1,1nr > $linkfile");
     $XMLHandler->{REVERSE} = $reverse;
 

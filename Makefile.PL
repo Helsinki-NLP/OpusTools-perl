@@ -55,6 +55,7 @@ requires 'Getopt::Std'      => 0;
 requires 'HTML::Entities'   => 0;
 requires 'IO::File'         => 0;
 requires 'Lingua::Sentence' => 0;
+requires 'Locale::Language' => 0;
 requires 'Test::More'       => 0;
 requires 'Ufal::UDPipe'     => 0;
 requires 'XML::Parser'      => 0;

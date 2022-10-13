@@ -4,14 +4,14 @@
 
 =head1 NAME
 
-opus2moses - convert aligned plain text files into OPUS XML
+moses2opus - convert aligned plain text files into OPUS XML
 
 =head1 USAGE
 
  # read sentence alignments and print aligned sentences
- opus2moses [-b outbase] srcfile trgfile > alignfile.xml
- opus2moses -s srclang -t trglang [-b outbase] srcfile trgfile > alignfile.xml
- opus2moses -s srclang -t trglang [-b outbase] bitextfile > alignfile.xml
+ moses2opus [-b outbase] srcfile trgfile > alignfile.xml
+ moses2opus -s srclang -t trglang [-b outbase] srcfile trgfile > alignfile.xml
+ moses2opus -s srclang -t trglang [-b outbase] bitextfile > alignfile.xml
 
 =head1 OPTIONS
 
@@ -161,7 +161,7 @@ while (<S>){
 	chomp $trg;
     }
     else{
-	($src,$trg) = split(/ \|\|\| /,$src);
+	($src,$trg) = split(/( \|\|\| |\t)/,$src);
     }
 
     if ($opt_c){

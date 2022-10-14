@@ -10,7 +10,7 @@ name          'OPUS-Tools';
 license       'mit';
 author        'Joerg Tiedemann';
 include       'Module::AutoInstall';
-version       '0.2.3';
+version       '0.2.4';
 
 install_script 'scripts/opus-cat';
 install_script 'scripts/opus-read';

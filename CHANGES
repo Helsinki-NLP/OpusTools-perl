@@ -1,4 +1,7 @@
 
+* v0.2.4
+
+- handle tsv files in moses2opus
 - new version of opus-pivoting
 
 * v0.2.3

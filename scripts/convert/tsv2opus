@@ -12,7 +12,7 @@ tsv2opus
 
 =head1 DESCRIPTION
 
-C<moses2opus> converts a sentence-aligned corpus in plain text format (Moses format or fast_align format) into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence
+C<tsv2opus> converts a sentence-aligned corpus in plain text format (TAB separated sentences) into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence.
 
 
 =head1 LICENSE

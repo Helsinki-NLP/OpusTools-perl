@@ -1,4 +1,7 @@
 
+
+- added multitsv2opus script for converting multi-parallel data
+
 * v0.2.4
 
 - handle tsv files in moses2opus

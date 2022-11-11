@@ -1,0 +1,202 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+multitsv2moses - convert aligned plain text files in tsv format into OPUS XML
+
+=head1 USAGE
+
+=head1 OPTIONS
+
+
+=head1 DESCRIPTION
+
+C<multitsv2opus> converts a sentence-aligned corpus in plain text format (TAB separated sentences) into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence. The difference to tsv2opus is that this script allows multiple languages separated by TABs as input. The output preserves the multi-parallel alignment by creating appropriate bilingual sentence alignment files across all language pairs. The script expects that the first line specifies the languages in each TAB with appropriate language IDs.
+
+
+=head1 LICENSE
+
+ ---------------------------------------------------------------------------
+ Copyright (c) 2004-2019 Joerg Tiedemann
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ ---------------------------------------------------------------------------
+
+=head1 See also
+
+This script is part of opus-tools L<https://github.com/Helsinki-NLP/opus-tools>
+See also OPUS L<http://opus.nlpl.eu> for more information about the corpus.
+
+=cut
+
+
+use strict;
+use open qw(:std :utf8);
+
+use Locale::Language;
+use XML::Writer;
+use Lingua::Sentence;
+
+
+my $header = <>;
+chomp($header);
+$header=~tr/\r//d;
+my @langs = split(/\t/,$header);
+shift(@langs);
+map(s/(..)-(..)/$1_$2/,@langs);
+
+
+my $currentdoc = undef;
+my %FileHandle = ();
+my %BitextHandle = ();
+
+my %CorpusWriter = ();
+my %AlignWriter = ();
+my %AlignIds = ();
+
+my %SentSplitters = ();
+my %LastSentIDs = ();
+my %OpenLinkGrp = ();
+
+while (<>){
+    chomp;
+    tr/\r//d;
+    my @sents = split(/\t/);
+    my $docid = shift(@sents);
+    my %sentids = ();
+    if ($docid ne $currentdoc){
+	print STDERR "process doc $docid\n";
+	foreach (keys %CorpusWriter){
+	    $CorpusWriter{$_}->endTag('text');
+	    $CorpusWriter{$_}->end();
+	}
+	foreach (keys %OpenLinkGrp){
+	    $AlignWriter{$_}->endTag('linkGrp');
+	}
+	%FileHandle = ();
+	%LastSentIDs = ();
+	%CorpusWriter = ();
+	%OpenLinkGrp = ();
+    }
+    $currentdoc = $docid;
+    foreach (0..$#sents){
+	if ($sents[$_]){
+	    mkdir $langs[$_] unless (-d $langs[$_]);
+	    unless (exists $SentSplitters{$langs[$_]}){
+		my $splitLang = ($langs[$_]=~/^..(-..)?$/) ? $langs[$_] : 'en';
+		$splitLang=~s/^(..)(-..)?$/$1/;
+		$SentSplitters{$langs[$_]} = Lingua::Sentence->new($splitLang);
+	    }
+	    unless (exists $CorpusWriter{$langs[$_]}){
+		open $FileHandle{$langs[$_]},">$langs[$_]/ted2020-$currentdoc.xml" || 
+		    die "cannot write to $langs[$_]/ted2020-$currentdoc.xml\n";
+		binmode($FileHandle{$langs[$_]},":encoding(utf-8)");
+
+		## open XML writers for corpus documents
+		$CorpusWriter{$langs[$_]} = XML::Writer->new( OUTPUT => $FileHandle{$langs[$_]},
+							      DATA_MODE => 1,
+							      DATA_INDENT => 1 );
+		$CorpusWriter{$langs[$_]}->xmlDecl("UTF-8");
+		$CorpusWriter{$langs[$_]}->startTag("text");
+	    }
+	    my @sents = $SentSplitters{$langs[$_]}->split_array($sents[$_]);
+	    $LastSentIDs{$langs[$_]}++;
+	    @{$sentids{$langs[$_]}} = write_sentences($CorpusWriter{$langs[$_]},$LastSentIDs{$langs[$_]},\@sents);
+	}
+    }
+    foreach my $s (0..$#langs){
+	next unless ($sents[$s]);
+	foreach my $t (0..$#langs){
+	    next unless ($langs[$s] lt $langs[$t]);
+	    next unless ($sents[$t]);
+	    my $src = $langs[$s];
+	    my $trg = $langs[$t];
+	    unless (exists $AlignWriter{"$src-$trg"}){
+		open $BitextHandle{"$src-$trg"},">$src-$trg.xml" || 
+		    die "cannot write to $src-$trg/ted2020-$currentdoc.xml\n";
+		binmode($BitextHandle{"$src-$trg"},":encoding(utf-8)");
+		$AlignWriter{"$src-$trg"} = XML::Writer->new( OUTPUT => $BitextHandle{"$src-$trg"},
+							      DATA_MODE => 1,
+							      DATA_INDENT => 1 );
+		$AlignWriter{"$src-$trg"}->xmlDecl("UTF-8");
+		$AlignWriter{"$src-$trg"}->startTag('cesAlign', 'version' => '1.0');
+		$AlignIds{"$src-$trg"} = 0;
+	    }
+	    unless (exists $OpenLinkGrp{"$src-$trg"}){
+		$AlignWriter{"$src-$trg"}->startTag('linkGrp',
+						    'targType' => 's', 
+						    'fromDoc'  => "$src/ted2020-$currentdoc.xml.gz",
+						    'toDoc'    => "$trg/ted2020-$currentdoc.xml.gz");
+		$OpenLinkGrp{"$src-$trg"} = 1;
+	    }
+	    my $srcLink = join(' ',@{$sentids{$src}});
+	    my $trgLink = join(' ',@{$sentids{$trg}});
+	    $AlignIds{"$src-$trg"}++;
+	    $AlignWriter{"$src-$trg"}->emptyTag('link',
+						'id' => 'L'.$AlignIds{"$src-$trg"},
+						'xtargets' => "$srcLink;$trgLink" );
+	}
+    }
+}
+
+foreach (keys %CorpusWriter){
+    $CorpusWriter{$_}->endTag('text');
+    $CorpusWriter{$_}->end();
+}
+foreach (keys %OpenLinkGrp){
+    $AlignWriter{$_}->endTag('linkGrp');
+}
+foreach (keys %AlignWriter){
+    $AlignWriter{$_}->endTag('cesAlign');
+    $AlignWriter{$_}->end();
+}
+
+
+
+
+## write sentences and return sentence IDs
+sub write_sentences{
+    my ($writer,$id,$sents) = @_;
+
+    my @ids = ();
+    if ( $#{$sents} ){
+	$writer->startTag('p','id' => "p$id");
+	my $sid = 0;
+	foreach my $s (@{$sents}){
+	    $sid++;
+	    $writer->startTag('s','id'=>$id.'.'.$sid);
+	    $writer->characters($s);
+	    $writer->endTag('s');
+	    push(@ids,$id.'.'.$sid);
+	}
+	$writer->endTag('p');
+    }
+    else{
+	$writer->startTag('s','id'=>$id);
+	$writer->characters($$sents[0]);
+	$writer->endTag('s');
+	push(@ids,$id);
+    }
+    return @ids;
+}
+
+
+

@@ -10,6 +10,11 @@ tsv2opus
 
 =head1 OPTIONS
 
+ -S <field> ........ position of the source language string (default = 0)
+ -T <field> ........ position of the target language string (default = 1)
+ -P <field> ........ position of the alignment probability/score (default = 2)
+ -O <field> ........ position of the origin information (default = 3)
+
 =head1 DESCRIPTION
 
 C<tsv2opus> converts a sentence-aligned corpus in plain text format (TAB separated sentences) into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence.
@@ -58,15 +63,22 @@ use Locale::Language;
 use XML::Writer;
 use Lingua::Sentence;
 
-use vars qw($opt_r $opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M);
+use vars qw($opt_r $opt_s $opt_t $opt_b $opt_z $opt_p $opt_l $opt_d $opt_D $opt_M
+    $opt_S $opt_T $opt_P $opt_O);
 use Getopt::Std;
-getopts('dDrs:t:b:zp:l:M:');
+getopts('dDrs:t:b:zp:l:M:S:T:P:O:');
 
 my $srclang  = $opt_s || 'xx';
 my $trglang  = $opt_t || 'yy';
 my $filebase = $opt_b || 'corpus';
 my $maxsize  = $opt_p;          # split into parts of size <p>
 my $part     = $maxsize || $opt_D ? 1 : 0;
+
+my %fields   = ();
+$fields{src} = defined($opt_S) ? $opt_S : 0;
+$fields{trg} = defined($opt_T) ? $opt_T : 1;
+$fields{score} = defined($opt_P) ? $opt_P : 2;
+$fields{origin} = defined($opt_O) ? $opt_O : 3;
 
 binmode(STDIN,":encoding(utf-8)");
 
@@ -109,7 +121,12 @@ my $sid = 0;
 my $lid = 0;
 while (<>){
     chomp;
-    my ($src,$trg,$score) = split(/\t/);
+    my @f      = split(/\t/);
+    my $src    = $f[$fields{src}];
+    my $trg    = $f[$fields{trg}];
+    my $score  = $f[$fields{score}]  if ($#f >= $fields{score});
+    my $origin = $f[$fields{origin}] if ($#f >= $fields{origin});
+#     my ($src,$trg,$score) = split(/\t/);
 
 
     ## document boundary? add a new paragraph or a new document
@@ -148,9 +165,8 @@ while (<>){
     my @SrcSents = $SrcSplitter->split_array($src);
     my @TrgSents = $TrgSplitter->split_array($trg);
 
-
-    my @SrcIds = write_sentences($SrcWriter,$sid,\@SrcSents);
-    my @TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents);
+    my @SrcIds = write_sentences($SrcWriter,$sid,\@SrcSents,$origin);
+    my @TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents,$origin);
 
     $lid++;
     print $AlgOut '<link xtargets="';
@@ -235,15 +251,19 @@ sub close_output{
 
 ## write sentences and return sentence IDs
 sub write_sentences{
-    my ($writer,$id,$sents) = @_;
+    my ($writer,$id,$sents,$origin) = @_;
 
     my @ids = ();
     if ( $#{$sents} ){
-	$writer->startTag('p','id' => "p$id");
+	my %attr = ( 'id' => "p$id" );
+	# $attr{origin} = $origin if ($origin);
+	$writer->startTag('p',%attr);
 	my $sid = 0;
 	foreach my $s (@{$sents}){
 	    $sid++;
-	    $writer->startTag('s','id'=>$id.'.'.$sid);
+	    my %attr = ( 'id' => $id.'.'.$sid );
+	    $attr{origin} = $origin if ($origin);
+	    $writer->startTag('s',%attr);
 	    $writer->characters($s);
 	    $writer->endTag('s');
 	    push(@ids,$id.'.'.$sid);
@@ -251,7 +271,9 @@ sub write_sentences{
 	$writer->endTag('p');
     }
     else{
-	$writer->startTag('s','id'=>$id);
+	my %attr = ( 'id' => $id );
+	$attr{origin} = $origin if ($origin);
+	$writer->startTag('s',%attr);
 	$writer->characters($$sents[0]);
 	$writer->endTag('s');
 	push(@ids,$id);

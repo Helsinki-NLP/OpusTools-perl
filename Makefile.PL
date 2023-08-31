@@ -52,6 +52,7 @@ requires 'Archive::Zip'     => 0;
 requires 'CGI'              => 0;
 requires 'Cwd'              => 0;
 requires 'DB_File'          => 0;
+# requires 'CDB_File'         => 0;
 requires 'Getopt::Std'      => 0;
 requires 'HTML::Entities'   => 0;
 requires 'IO::File'         => 0;

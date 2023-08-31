@@ -1,0 +1,16 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+
+use strict;
+use CDB_File;
+
+my $dbfile = shift(@ARGV);
+my $dbh = CDB_File->new($dbfile, $dbfile.$$) or die "cannot tie DB hash";
+
+while (<>){
+    chomp;
+    my ($key, $value) = split(/\t/);
+    $dbh->insert($key, $value);
+}
+
+$dbh->finish;

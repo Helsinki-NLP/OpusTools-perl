@@ -5,6 +5,8 @@ use strict;
 use XML::Parser;
 use Getopt::Std;
 use OPUS::Tools;
+# use CDB_File;
+
 
 use vars qw/$opt_d/;
 getopts('d:');
@@ -18,6 +20,7 @@ my $AlignHandler = $AlignParser->parse_start;
 my $fromDoc = undef;
 my $toDoc = undef;
 my @links = ();
+my $StartOfLinkGrp = undef;
 my $EndOfLinkGrp = undef;
 
 my $countLinkGroups = 0;
@@ -31,32 +34,31 @@ my $countTrgWords = 0;
 print STDERR "read sentence alignments\n";
 while ( &read_linkgrp($AlignHandler) ){
 
-    if (@links){
+    if ($AlignHandler->{__NR_OF_TUS__}){
 	$countLinkGroups++;
-	$countTUs += @links;
+	$countTUs += $AlignHandler->{__NR_OF_TUS__};
+	# $countTUs += @links;
 
 	my %SrcSentIds = ();
 	my %TrgSentIds = ();
-	print STDERR "get sentence IDs from $fromDoc <-> $toDoc\n";
-	&get_linked_sentids(\@links,\%SrcSentIds,\%TrgSentIds);
-	$countSrcSents += scalar %SrcSentIds;
-	$countTrgSents += scalar %TrgSentIds;
 
-	print STDERR "count words in linked sentences from $fromDoc\n";
-	&count_words($fromDoc, $CorpusDir, \%SrcSentIds);
+	$countSrcSents += scalar keys %{$AlignHandler->{__SRC_SENT_IDS__}};
+	$countTrgSents += scalar keys %{$AlignHandler->{__TRG_SENT_IDS__}};
 
-	print STDERR "count words in linked sentences from $toDoc\n";
-	&count_words($toDoc, $CorpusDir, \%TrgSentIds);
+	if ( exists $AlignHandler->{__NR_OF_SRCWORDS__} ){
+	    $countSrcWords += $AlignHandler->{__NR_OF_SRCWORDS__};
+	}
+	else{
+	    print STDERR "count words in linked sentences from $fromDoc\n";
+	    $countSrcWords += &count_words($fromDoc, $CorpusDir, $AlignHandler->{__SRC_SENT_IDS__});
+	}
 
-	print STDERR "sum up word counts over all bitext segments\n";
-	foreach (@links){
-	    my ($s,$t) = split(/\;/);
-	    foreach (split(/\s+/,$s)){
-		$countSrcWords += $SrcSentIds{$_};
-	    }
-	    foreach (split(/\s+/,$t)){
-		$countTrgWords += $TrgSentIds{$_};
-	    }
+	if ( exists $AlignHandler->{__NR_OF_TRGWORDS__} ){
+	    $countTrgWords += $AlignHandler->{__NR_OF_TRGWORDS__};
+	}
+	else{
+	    print STDERR "count words in linked sentences from $toDoc\n";
+	    $countTrgWords += &count_words($toDoc, $CorpusDir, $AlignHandler->{__TRG_SENT_IDS__});
 	}
     }
 }
@@ -113,8 +115,7 @@ sub count_words{
 	    chomp;
 	    my ($id,$count) = split(/\t/);
 	    if (exists $$links{$id}){
-		$$links{$id} = $count;
-		$NrOfWords += $count;
+		$NrOfWords += $$links{$id} * $count;
 	    }
 	}
 	close F;
@@ -161,9 +162,59 @@ sub AlignTagStart{
     if ($e eq 'linkGrp'){
 	$fromDoc = $a{fromDoc};
 	$toDoc   = $a{toDoc};
+	
+	$p->{__NR_OF_TUS__} = 0;
+	delete $p->{__NR_OF_SRCWORDS__};
+	delete $p->{__NR_OF_TRGWORDS__};
+	$p->{__SRC_SENT_IDS__} = {};
+	$p->{__TRG_SENT_IDS__} = {};
+
+ 	# ## check whether we have a database of counts available
+	
+	# my $fromDocCountDB = $CorpusDir.'/'.$fromDoc;
+	# my $toDocCountDB = $CorpusDir.'/'.$toDoc;
+	
+	# $fromDocCountDB=~s/\.xml\.gz/.cdb/;
+	# $toDocCountDB=~s/\.xml\.gz/.cdb/;
+
+	# if (-e $fromDocCountDB){
+	#     $p->{__FROM_DOC_DB__} = CDB_File->TIEHASH($fromDocCountDB);
+	#     $p->{__NR_OF_SRCWORDS__} = 0;
+	# }
+	# if (-e $toDocCountDB){
+	#     $p->{__TO_DOC_DB__} = CDB_File->TIEHASH($toDocCountDB);
+	#     $p->{__NR_OF_TRGWORDS__} = 0;
+	# }
+
     }
     elsif ($e eq 'link'){
-	push(@links,$a{xtargets});
+
+	$p->{__NR_OF_TUS__}++;
+
+	my ($s,$t) = split(/\;/,$a{xtargets});
+	foreach (split(/\s+/,$s)){
+	    $p->{__SRC_SENT_IDS__}->{$_}++;
+	    # if (exists $p->{__FROM_DOC_DB__}){
+	    # 	if ($p->{__FROM_DOC_DB__}->EXISTS($_)) {
+	    # 	    $p->{__NR_OF_SRCWORDS__} += $p->{__FROM_DOC_DB__}->FETCH($_);
+	    # 	}
+	    # 	else{
+	    # 	    print STDERR "cannot find count for source sentence $_!\!\n";
+	    # 	}
+	    # }
+	}
+    
+	foreach (split(/\s+/,$t)){
+	    $p->{__TRG_SENT_IDS__}->{$_}++;
+	    # if (exists $p->{__TO_DOC_DB__}){
+	    # 	if ($p->{__TO_DOC_DB__}->EXISTS($_)) {
+	    # 	    $p->{__NR_OF_TRGWORDS__} += $p->{__TO_DOC_DB__}->FETCH($_);
+	    # 	}
+	    # 	else{
+	    # 	    print STDERR "cannot find count for target sentence $_!\!\n";
+	    # 	}
+	    # }
+	}
     }
 }
 
@@ -177,19 +228,18 @@ sub AlignTagEnd{
 sub XmlStart{
     my ($p,$e,%a)=@_;
     if ($e eq 's'){
-	if (exists $p->{__SENTIDS__}->{$a{id}}){
-	    $p->{__SENTID__} = $a{id};
-	    $p->{__SENTIDS__}->{$a{id}} = 0;
-	}
+	$p->{__SENTID__} = exists $p->{__SENTIDS__}->{$a{id}};
+	$p->{__NR_OF_SENTWORDS__} = 0;
     }
     elsif (($e eq 'w') && $p->{__SENTID__}){
-	$p->{__SENTIDS__}->{$p->{__SENTID__}}++
+	$p->{__NR_OF_SENTWORDS__}++
     }
 }
 
 sub XmlEnd{
     if ($_[1] eq 's'){
 	if (exists $_[0]->{__SENTID__}){
+	    $_[0]->{__NR_OF_WORDS__} += $_[0]->{__SENTID__}*$_[0]->{__NR_OF_SENTWORDS__};
 	    $_[0]->{__NR_OF_SENTS__}++;
 	    delete $_[0]->{__SENTID__};
 	}

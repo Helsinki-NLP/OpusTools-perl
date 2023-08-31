@@ -3,6 +3,16 @@
 
 use strict;
 use XML::Parser;
+# use CDB_File;
+# use Getopt::Std;
+
+# use vars qw/$opt_d/;
+# getopts('d:');
+
+# my $dbh;
+# if ($opt_d){
+#     $dbh = CDB_File->new($opt_d, $opt_d.$$) or die "cannot tie DB hash";
+# }
 
 my $XmlParser;
 my $XmlHandler;
@@ -21,7 +31,7 @@ $/='>';
 while (<>){
 
     ## make sure that we start with an XML declaration
-    ## this makes it possible to call this tool on data splitd
+    ## this makes it possible to call this tool on data splits
     ## (for example, produced by GNU parallel)
     if ($firstline){
 	unless (/<\?xml/){
@@ -41,8 +51,10 @@ while (<>){
 	print "\n";    # newlines between documents
     }
 
-    s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g;     ## remove control characters
-    s/&(?!(#\d+|\w+);)/&amp;/g;            ## fix un-escaped XML entities
+    ## in case we want to fix some errors:
+    #
+    # s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g;     ## remove control characters
+    # s/&(?!(#\d+|\w+);)/&amp;/g;            ## fix un-escaped XML entities
 
     eval { $XmlHandler->parse_more($_); };
     if ($@){
@@ -51,6 +63,10 @@ while (<>){
 #	print STDERR $_;
     }
 }
+
+# if ($opt_d){
+#     $dbh->finish;
+# }
 
 print STDERR "$ErrorCount errors found!" if ($ErrorCount);
 
@@ -69,5 +85,8 @@ sub XmlTagStart{
 sub XmlTagEnd{
     if ($_[1] eq 's'){
 	print $SentID,"\t",$NrWords,"\n";
+	# if ($dbh){
+	#     $dbh->insert($SentID, $NrWords);
+	# }
     }
 }

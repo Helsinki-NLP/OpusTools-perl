@@ -58,6 +58,7 @@ sub read_alignments{
 	}
 	$$aligned{$filepair} .= $_ if ($filepair);
 	if (/\<\/linkGrp/){
+	    $$aligned{$filepair} .= $_;
 	    $filepair = undef;
 	}
     }

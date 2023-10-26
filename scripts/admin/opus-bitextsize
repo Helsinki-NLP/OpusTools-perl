@@ -39,27 +39,24 @@ while ( &read_linkgrp($AlignHandler) ){
 	$countTUs += $AlignHandler->{__NR_OF_TUS__};
 	# $countTUs += @links;
 
-	my %SrcSentIds = ();
-	my %TrgSentIds = ();
-
 	$countSrcSents += scalar keys %{$AlignHandler->{__SRC_SENT_IDS__}};
 	$countTrgSents += scalar keys %{$AlignHandler->{__TRG_SENT_IDS__}};
 
-	if ( exists $AlignHandler->{__NR_OF_SRCWORDS__} ){
-	    $countSrcWords += $AlignHandler->{__NR_OF_SRCWORDS__};
-	}
-	else{
+	# if ( exists $AlignHandler->{__NR_OF_SRCWORDS__} ){
+	#     $countSrcWords += $AlignHandler->{__NR_OF_SRCWORDS__};
+	# }
+	# else{
 	    print STDERR "count words in linked sentences from $fromDoc\n";
 	    $countSrcWords += &count_words($fromDoc, $CorpusDir, $AlignHandler->{__SRC_SENT_IDS__});
-	}
+	# }
 
-	if ( exists $AlignHandler->{__NR_OF_TRGWORDS__} ){
-	    $countTrgWords += $AlignHandler->{__NR_OF_TRGWORDS__};
-	}
-	else{
+	# if ( exists $AlignHandler->{__NR_OF_TRGWORDS__} ){
+	#     $countTrgWords += $AlignHandler->{__NR_OF_TRGWORDS__};
+	# }
+	# else{
 	    print STDERR "count words in linked sentences from $toDoc\n";
 	    $countTrgWords += &count_words($toDoc, $CorpusDir, $AlignHandler->{__TRG_SENT_IDS__});
-	}
+	# }
     }
 }
 
@@ -87,19 +84,6 @@ sub read_linkgrp{
     return $EndOfLinkGrp;
 }
 
-
-sub get_linked_sentids{
-    my ($links, $SrcSentIds, $TrgSentIds) = @_;
-    foreach (@{$links}){
-	my ($s,$t) = split(/\;/);
-	foreach (split(/\s+/,$s)){
-	    $$SrcSentIds{$_}++;
-	}
-	foreach (split(/\s+/,$t)){
-	    $$TrgSentIds{$_}++;
-	}
-    }
-}
 
 
 sub count_words{
@@ -134,7 +118,7 @@ sub count_words_from_xml{
 
     $XmlHandler->{__NR_OF_WORDS__} = 0;
     $XmlHandler->{__NR_OF_SENTS__} = 0;
-    $XmlHandler->{__SENTIDS__}       = $links || {};
+    $XmlHandler->{__SENTIDS__}     = $links || {};
 
     my $fh;
     die "cannot open $doc!\n" unless (&open_opus_document(\$fh,$dir,$doc));
@@ -164,10 +148,11 @@ sub AlignTagStart{
 	$toDoc   = $a{toDoc};
 	
 	$p->{__NR_OF_TUS__} = 0;
-	delete $p->{__NR_OF_SRCWORDS__};
-	delete $p->{__NR_OF_TRGWORDS__};
 	$p->{__SRC_SENT_IDS__} = {};
 	$p->{__TRG_SENT_IDS__} = {};
+	# delete $p->{__NR_OF_SRCWORDS__};
+	# delete $p->{__NR_OF_TRGWORDS__};
+
 
  	# ## check whether we have a database of counts available
 	

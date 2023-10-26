@@ -148,16 +148,46 @@ sub XmlTagStart{
 	$CurrentLang = $a{'xml:lang'} if (exists $a{'xml:lang'});
 	$CurrentLang = $a{'lang'} if (exists $a{'lang'});
 
-	## replace hyphens with underscores
-	## lowercase the language IDs
-	## remove regional identifier if it is a copy of the lang ID
-	$CurrentLang=~s/\-/\_/g;
-	$CurrentLang=lc($CurrentLang);   # lower-case
-	$CurrentLang=~s/^(.*)\_\1$/$1/g; # remove copies of lang ID
-	# $CurrentLang=~s/\_[^a-z]$//g;    # remove non-alphabetic extension
+	# ## replace hyphens with underscores
+	# ## lowercase the language IDs
+	# ## remove regional identifier if it is a copy of the lang ID
+	# $CurrentLang=~s/\-/\_/g;
+	# $CurrentLang=lc($CurrentLang);   # lower-case
+	# $CurrentLang=~s/^(.*)\_\1$/$1/g; # remove copies of lang ID
+	# # $CurrentLang=~s/\_[^a-z]$//g;    # remove non-alphabetic extension
+
+	# ## always remove regional extension if -r
+	# $CurrentLang=~s/^(.*)\_.*$/$1/g if ($opt_r);
+
+	
+	my @parts = split(/[\_\-]/,$CurrentLang);
 
 	## always remove regional extension if -r
-	$CurrentLang=~s/^(.*)\_.*$/$1/g if ($opt_r);
+	@parts = ($parts[0]) if ($opt_r);
+
+	## lowercase the language IDs
+	$parts[0] = lc($parts[0]);
+
+	
+	if ($#parts > 0){
+	    
+	    ## remove regional identifier if it is a copy of the lang ID
+	    if (lc($parts[0]) eq lc($parts[1])){
+		if (@parts == 2){
+		    $parts[1] = pop(@parts);
+		}
+		else{
+		    pop(@parts);
+		}
+	    }
+	    $parts[-1] = 'Cyrl' if (lc($parts[-1]) eq 'cyrillic');
+	    $parts[-1] = 'Latn' if (lc($parts[-1]) eq 'latin');
+	}
+	
+	## merge with underscores instead of hyphens
+	$CurrentLang = join('_',@parts);
+
+
 
 	$LangSeg{$CurrentLang} = [];
     }

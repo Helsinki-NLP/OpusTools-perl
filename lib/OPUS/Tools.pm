@@ -52,7 +52,7 @@ use Archive::Zip qw/ :ERROR_CODES :CONSTANTS /;
 use Archive::Zip::MemberRead;
 use File::Basename qw(dirname basename);
 
-use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
+use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName iso639_exists /;
 
 
 our @EXPORT = qw(set_corpus_info delete_all_corpus_info
@@ -694,6 +694,16 @@ sub open_zip_file{
 	    my $line = $fh->getline();
 	    my ($name,$type) = split(/\//,$line);
 	    $CorpusBase{$corpus} = $name.'/'.$type;
+	}
+	else{
+	    print STDERR "No INFO file found in $zipfile\n";
+	    my ($memberFile) = $ZipFiles{$corpus}->membersMatching( '.*\.xml' );
+	    my @path = split(/\//,$memberFile->fileName);
+	    if ($#path > 2){
+		if (! iso639_exists($path[0])){
+		    $CorpusBase{$corpus} = $path[0].'/'.$path[1];
+		}
+	    }
 	}
 	return $ZipFiles{$corpus} if ($ZipFiles{$corpus});
     }

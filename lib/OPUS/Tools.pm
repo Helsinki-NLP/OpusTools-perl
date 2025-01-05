@@ -708,7 +708,7 @@ sub open_opus_document{
     my ($fh,$dir,$doc) = @_;
 
     my ($lang) = split(/\//,$doc);
-    my $zipfile = $dir.'/'.$lang.'.zip';
+    my $zipfile = $dir ? $dir.'/'.$lang.'.zip' : $lang.'.zip';
 
     ## try to open a zip file
     my $zip = open_zip_file($zipfile);

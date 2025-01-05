@@ -264,8 +264,7 @@ SRCSENT:        foreach (@srcsent){
 			    $sent=~s/\n/ /gs;
 			    $sent=~s/\<[^\>]*>//gs;
 			    $sent=~s/  +/ /gs;
-			    if ($html){$sent=&Str2Html($sent);}
-			    else{
+			    if (!$html){
 				$sent=~s/\&gt\;/\>/gs;
 				$sent=~s/\&lt\;/\</gs;
 				$sent=~s/\&amp\;/\&/gs;
@@ -290,8 +289,7 @@ TRGSENT:        foreach (@trgsent){
 			    $sent=~s/\n/ /gs;
 			    $sent=~s/\<[^\>]*>//gs;
 			    $sent=~s/  +/ /gs;
-			    if ($html){$sent=&Str2Html($sent);}
-			    else{
+			    if (!$html){
 				$sent=~s/\&gt\;/\>/gs;
 				$sent=~s/\&lt\;/\</gs;
 				$sent=~s/\&amp\;/\&/gs;
@@ -331,14 +329,6 @@ unless ($FilterMode){
 close F;
 
 if ($html){&PrintHtmlTail();}
-
-sub Str2Html{
-    my $string=shift;
-#    $string=~s/\&/\&amp\;/gs;
-#    $string=~s/\</\&lt\;/gs;
-#    $string=~s/\>/\&gt\;/gs;
-    return $string;
-}
 
 
 sub PrintHtmlHeader{

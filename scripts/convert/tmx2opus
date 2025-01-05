@@ -21,6 +21,8 @@ tmx2opus - convert TMX into OPUS XML
   -I ................ skip identical aligned sentences
   -P ................ do NOT change some property names from ParaCrawl TMX
   -r ................ always remove regional codes
+  -s ................ check scripts and add script info if necessary
+  -S langid[:langid]* check scripts and add script info if necessary for selected langid's
   -u ................ store unique sentences only
   -d ................ use DB_File to store sentences when using -u
   -v ................ verbose output
@@ -45,9 +47,20 @@ use File::Temp qw/ tempfile /;
 use DB_File;
 # use DBM_Filter;
 
-use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_t $opt_u $opt_v $opt_I);
+use vars qw($opt_d $opt_o $opt_p $opt_P $opt_r $opt_s $opt_S $opt_t $opt_u $opt_v $opt_I);
 use Getopt::Std;
-getopts('do:p:Prt:uvI');
+getopts('do:p:PrsS:t:uvI');
+
+my %CheckScriptLangs = ();
+if ($opt_s || $opt_S){
+    require ISO::15924;
+    if ($opt_S){
+	my @checklangs = split(/\:/,$opt_S);
+	foreach (@checklangs){
+	    $CheckScriptLangs{$_}++;
+	}
+    }
+}
 
 
 $DB_BTREE->{'cachesize'} = 1000000 ;
@@ -187,7 +200,10 @@ sub XmlTagStart{
 	## merge with underscores instead of hyphens
 	$CurrentLang = join('_',@parts);
 
-
+	## add region code instead of script for Chinese
+	## TODO: is that a wise decision?
+	$CurrentLang = 'zh_TW' if ($CurrentLang=~/^zh_hant$/i);
+	$CurrentLang = 'zh_CN' if ($CurrentLang=~/^zh_hans$/i);
 
 	$LangSeg{$CurrentLang} = [];
     }
@@ -248,10 +264,39 @@ sub XmlChar{
 }
 
 
+sub check_langscripts{
+    my ($seg, $selectedOnly, $selectedLangs) = @_;
+    
+    foreach my $l (keys %{$seg}){
+	if ($selectedOnly){
+	    next unless (exists $$selectedLangs{$l});
+	}
+	my @parts = split(/[\-\_]/,$l);
+	my $lang = $parts[0];
+	if (@parts > 1){
+	    if ($parts[1]=~/^[A-Z]{2}$/){
+		$lang = join('_',($parts[0],$parts[1]));
+	    }
+	}
+	my $DefaultScript = &ISO::15924::default_script($lang);
+	my $script = &ISO::15924::script_of_string(join(' ',@{$$seg{$l}}), $lang);
+	if ($DefaultScript ne $script){
+	    $lang = join('_',($lang,$script));
+	    $$seg{$lang} = $$seg{$l};
+	    delete $$seg{$l};
+	}
+    }
+}
+
 sub print_alignments{
     my $seg = shift;
 
     return unless (ref($seg) eq 'HASH');
+
+    if ($opt_s || $opt_S){
+	&check_langscripts($seg, $opt_S, \%CheckScriptLangs);
+    }
+
     my @langs = sort keys %{$seg};
     return unless ($#langs);
 

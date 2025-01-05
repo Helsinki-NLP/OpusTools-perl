@@ -771,7 +771,7 @@ sub HtmlHeader{
     my $css="index.css";
     my $HTML=&header(-charset => 'utf-8');
     $HTML.=&start_html(-title => $CORPUS,
-		       -author => 'Joerg Tiedemann',
+		       -author => 'opus-project',
 		       -base=>'true',
 		       -dtd=>1,
 		       -meta=>{robots => 'NOFOLLOW'},

@@ -217,11 +217,12 @@ while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links,
 
     ## document boundary
     if ($opt_D){
+	print "\n" unless ($opt_e || $opt_f);
 	print $SrcOut "\n" if ($opt_e);
 	print $TrgOut "\n" if ($opt_f);
     }
-    print $SrcOut "\n" if ($opt_e);
-    print $TrgOut "\n" if ($opt_f);
+    # print $SrcOut "\n" if ($opt_e);
+    # print $TrgOut "\n" if ($opt_f);
 }
 
 $SrcOut->close() if ($opt_e);

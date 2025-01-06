@@ -126,6 +126,7 @@ my $NrSrc=undef;
 my $NrTrg=undef;
 my $LinkThr=undef;
 my $OverlapThr=undef;
+my $TSVmode=0;       # tab-separated bitext
 my $FilterMode=0;    # filter-mode: print alignment XML
 my $SkipDocs=undef;  # RE pattern for doc's to be skipped when reading
 my $GrepDocs=undef;  # RE pattern for doc's to be extracted
@@ -138,6 +139,7 @@ my $CorpusType    = 'xml';
 while ($ARGV[0]=~/^\-/){
     my $o=shift(@ARGV);
     if ($o=~/^\-h/){$html=1;}
+    elsif ($o=~/^\-tsv/){$TSVmode=1;}
     elsif ($o=~/^\-m/){$max=shift @ARGV;}
     elsif ($o=~/^\-d/){$CorpusName=shift @ARGV;}
     elsif ($o=~/^\-p/){$CorpusType=shift @ARGV;}
@@ -191,12 +193,14 @@ while (<$fh>){
 	    $trgdoc = $1;
 	    unless ($FilterMode){
 		open_opus_document(\$TrgHandle,$CorpusDir,$trgdoc);
-		if ($html){print "<p>\n";}
-		print "\n# ".$srcdoc;
-		if ($html){print '<br>';}
-		print "\n# ".$trgdoc."\n\n";
-		if ($html){print "<p><hr>\n";}
-		else{print "================================\n";}
+		unless ($TSVmode){
+		    if ($html){print "<p>\n";}
+		    print "\n# ".$srcdoc;
+		    if ($html){print '<br>';}
+		    print "\n# ".$trgdoc."\n\n";
+		    if ($html){print "<p><hr>\n";}
+		    else{print "================================\n";}
+		}
 	    }
 	    print STDERR "$trgdoc\n" if ($VERBOSE);
 	}
@@ -261,6 +265,7 @@ SRCSENT:        foreach (@srcsent){
 				next SRCSENT unless ($sent=~/lang=\"$SrcID\"/);
 			    }
 			    $sent=~s/^.*<s [^\>]*id/(src)/s;
+			    $sent=~s/^[^\>]*>//s if ($TSVmode);
 			    $sent=~s/\n/ /gs;
 			    $sent=~s/\<[^\>]*>//gs;
 			    $sent=~s/  +/ /gs;
@@ -286,6 +291,7 @@ TRGSENT:        foreach (@trgsent){
 				next TRGSENT unless ($sent=~/lang=\"$TrgID\"/);
 			    }
 			    $sent=~s/^.*<s [^\>]*id/(trg)/s;
+			    $sent=~s/^[^\>]*>//s if ($TSVmode);
 			    $sent=~s/\n/ /gs;
 			    $sent=~s/\<[^\>]*>//gs;
 			    $sent=~s/  +/ /gs;
@@ -310,10 +316,21 @@ TRGSENT:        foreach (@trgsent){
 		}
 		$/=$oldDel;
 		if ($SrcStr && $TrgStr){
-		    print $SrcStr;
-		    print $TrgStr;
-		    if ($html){print "<hr>\n";}
-		    else{print "================================\n";}
+		    if ($TSVmode){
+			$SrcStr=~s/\n/ /g;
+			$TrgStr=~s/\n/ /g;
+			$SrcStr=~s/  +/ /gs;
+			$TrgStr=~s/  +/ /gs;
+			$SrcStr=~s/^ *//gs;
+			$TrgStr=~s/^ *//gs;
+			print $SrcStr."\t".$TrgStr."\n";
+		    }
+		    else{
+			print $SrcStr;
+			print $TrgStr;
+			if ($html){print "<hr>\n";}
+			else{print "================================\n";}
+		    }
 		}
 		else{ next; }
 	    }

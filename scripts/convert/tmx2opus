@@ -355,18 +355,19 @@ sub print_links{
     $LinkID{$LangPair}++;
     my $link = join(' ',@{$SrcIDs}).';'.join(' ',@{$TrgIDs});
 
-    ## make some minor adjustments to link properties coming from ParaCrawl data
-    unless ($opt_P){
-	if (exists $LinkProp{'score-aligner'}){
-	    $LinkProp{'hunalign'} = $LinkProp{'score-aligner'};
-	    delete $LinkProp{'score-aligner'};
-	}
-	if (exists $LinkProp{'score-bicleaner'}){
-	    $LinkProp{'score'} = $LinkProp{'score-bicleaner'};
-	    delete $LinkProp{'score-bicleaner'};
-	}
-	delete $LinkProp{'lengthRatio'};
-    }
+    # ## make some minor adjustments to link properties coming from ParaCrawl data
+    # ## Why?
+    # unless ($opt_P){
+    # 	if (exists $LinkProp{'score-aligner'}){
+    # 	    $LinkProp{'hunalign'} = $LinkProp{'score-aligner'};
+    # 	    delete $LinkProp{'score-aligner'};
+    # 	}
+    # 	if (exists $LinkProp{'score-bicleaner'}){
+    # 	    $LinkProp{'score'} = $LinkProp{'score-bicleaner'};
+    # 	    delete $LinkProp{'score-bicleaner'};
+    # 	}
+    # 	delete $LinkProp{'lengthRatio'};
+    # }
 
     $BitextWriter{$LangPair}->emptyTag('link',
 				       'id' => 'L'.$LinkID{$LangPair},

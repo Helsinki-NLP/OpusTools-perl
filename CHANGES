@@ -1,5 +1,7 @@
 
+* v0.2.5
 
+- po2opus conversion tool added
 - bugfix in opus-merge (missing end tag of linkGrp)
 - added multitsv2opus script for converting multi-parallel data
 - added options to tsv2opus for setting field order

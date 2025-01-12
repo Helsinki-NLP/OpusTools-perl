@@ -20,6 +20,7 @@ The following Perl libraries are required
 * DB_File
 * HTML::Entities
 * Lingua::Sentence
+* Locale::PO
 * Ufal::UDPipe
 * XML::Parser
 * XML::Writer
@@ -51,6 +52,7 @@ Conversion tools:
 * **opus2moses**: extract aligned plain text files from OPUS files
 * **tmx2moses**: convert TMX files into aligned plain text files
 * **tmx2opus**: convert TMX files into OPUS format
+* **po2opus**: convert PO files to OPUS
 * **xml2opus**: add sentence boundary markup to arbitrary XML files
 * **opus2text**: extract plain text from OPUS XML files
 * **opus2multi**: make a multiparallel corpus using a pivot language

@@ -45,6 +45,7 @@ install_script 'scripts/convert/tmx2moses';
 install_script 'scripts/convert/tsv2opus';
 install_script 'scripts/convert/multitsv2opus';
 install_script 'scripts/convert/xml2opus';
+install_script 'scripts/convert/po2opus';
 
 
 
@@ -58,6 +59,7 @@ requires 'HTML::Entities'   => 0;
 requires 'IO::File'         => 0;
 requires 'Lingua::Sentence' => 0;
 requires 'Locale::Language' => 0;
+requires 'Locale::PO' => 0;
 requires 'Test::More'       => 0;
 requires 'Ufal::UDPipe'     => 0;
 requires 'XML::Parser'      => 0;

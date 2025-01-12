@@ -1,0 +1,198 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+po2opus
+
+=head1 USAGE
+
+po2opus [-s srclang] [-t trglang] [-S srcfile] [-T trgfile]
+
+=head1 OPTIONS
+
+=head1 DESCRIPTION
+
+C<po2opus> converts localiztion files in PO format into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence.
+
+
+=head1 LICENSE
+
+ ---------------------------------------------------------------------------
+ Copyright (c) 2004-2019 Joerg Tiedemann
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ ---------------------------------------------------------------------------
+
+=head1 See also
+
+This script is part of opus-tools L<https://github.com/Helsinki-NLP/opus-tools>
+See also OPUS L<http://opus.nlpl.eu> for more information about the corpus.
+
+=cut
+
+
+use strict;
+
+use IO::File;
+use Locale::PO;
+use XML::Writer;
+use Lingua::Sentence;
+
+use vars qw($opt_e $opt_s $opt_t $opt_S $opt_T);
+use Getopt::Std;
+getopts('e:s:t:S:T:');
+
+my $srclang = $opt_s || 'en';
+my $trglang = $opt_t || 'de';
+my $srcfile = $opt_S || 'source.xml';
+my $trgfile = $opt_T || 'target.xml';
+my $encoding = $opt_e || 'utf8';
+
+my $pofile = shift(@ARGV);
+
+
+my $SrcWriter = open_output($srcfile);
+my $TrgWriter = open_output($trgfile);
+
+
+## only allow 2-letter codes, fallbak to English
+my ($srcSplitLang,$trgSplitLang) = ($srclang,$trglang);
+
+$srcSplitLang =~s/\_.*$//;
+$trgSplitLang =~s/\_.*$//;
+$srcSplitLang = 'en' unless ($srclang=~/^..$/);
+$trgSplitLang = 'en' unless ($trglang=~/^..$/);
+
+## create sentence splitters
+my $SrcSplitter = Lingua::Sentence->new($srcSplitLang);
+my $TrgSplitter = Lingua::Sentence->new($trgSplitLang);
+
+
+
+
+
+## print align file header
+print '<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
+<cesAlign version="1.0">
+';
+print "<linkGrp targType=\"s\" fromDoc=\"$srcfile.gz\" toDoc=\"$trgfile.gz\" >\n";
+
+
+my $aref = Locale::PO->load_file_asarray($pofile,$encoding);
+
+my $sid = 0;
+my $lid = 0;
+foreach my $po (@{$aref}){
+    $sid++;
+    my $src = $po->dequote($po->msgid);
+    my $trg = $po->dequote($po->msgstr);
+
+    my @SrcSents = ();
+    my @TrgSents = ();
+
+    my @SrcIds = ();
+    my @TrgIds = ();
+    
+    if ($src){
+	@SrcSents = $SrcSplitter->split_array($src);
+	@SrcIds = write_sentences($SrcWriter,$sid,\@SrcSents);
+    }
+
+    if ($trg){
+	@TrgSents = $TrgSplitter->split_array($trg);
+	@TrgIds = write_sentences($TrgWriter,$sid,\@TrgSents);
+    }
+
+    if (@SrcIds && @TrgIds){
+	$lid++;
+	print '<link xtargets="';
+	print join(' ',@SrcIds);
+	print ';';
+	print join(' ',@TrgIds);
+	print '" id="SL'.$lid;
+	print '"/>',"\n";
+	print STDERR '.' if (! ($lid % 1000));
+	print STDERR " $lid\n" if (! ($lid % 50000));
+    }
+}
+
+close_output($SrcWriter);
+close_output($TrgWriter);
+print "  </linkGrp>\n";
+print "</cesAlign>\n";
+
+
+
+sub open_output{
+    my $filename = shift;
+
+    my $OutFile = $filename =~/\.gz$/ ? 
+	IO::File->new("| gzip -c > $filename") :
+	IO::File->new(">$filename");
+    binmode($OutFile,":encoding(utf-8)");
+
+    ## open XML writers for corpus documents
+    my $OutWriter = XML::Writer->new( OUTPUT => $OutFile,
+				      DATA_MODE => 1,
+				      DATA_INDENT => 1 );
+    $OutWriter->xmlDecl("UTF-8");
+    $OutWriter->startTag("text");
+    return $OutWriter;
+}
+
+sub close_output{
+    my $OutWriter = shift;
+    $OutWriter->endTag('text');
+    $OutWriter->end();
+}
+
+
+## write sentences and return sentence IDs
+sub write_sentences{
+    my ($writer,$id,$sents) = @_;
+
+    my @ids = ();
+    if ( $#{$sents} ){
+	my %attr = ( 'id' => "p$id" );
+	$writer->startTag('p',%attr);
+	my $sid = 0;
+	foreach my $s (@{$sents}){
+	    $sid++;
+	    my %attr = ( 'id' => $id.'.'.$sid );
+	    $writer->startTag('s',%attr);
+	    $writer->characters($s);
+	    $writer->endTag('s');
+	    push(@ids,$id.'.'.$sid);
+	}
+	$writer->endTag('p');
+    }
+    else{
+	my %attr = ( 'id' => $id );
+	$writer->startTag('s',%attr);
+	$writer->characters($$sents[0]);
+	$writer->endTag('s');
+	push(@ids,$id);
+    }
+    return @ids;
+}
+
+

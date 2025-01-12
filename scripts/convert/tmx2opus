@@ -217,7 +217,7 @@ sub XmlTagStart{
 	    $p->{OPEN_PROP} = $a{type};
 	}
 	# elsif ($a{type}=~/^(score[a-zA-Z\-\_]*|type|info)$/){
-	elsif ($a{type}=~/^(score[a-zA-Z\-\_]*|info)$/){
+	elsif ($a{type}=~/^(score[a-zA-Z\-\_]*|info|collection)$/){
 	    $p->{OPEN_PROP} = $a{type};
 	}
     }

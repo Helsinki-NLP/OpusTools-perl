@@ -69,7 +69,7 @@ my $encoding = $opt_e || 'utf8';
 my $pofile = shift(@ARGV);
 
 
-my $SrcWriter = open_output($srcfile);
+my $SrcWriter = open_output($srcfile) if ($srcfile);
 my $TrgWriter = open_output($trgfile);
 
 
@@ -87,14 +87,12 @@ my $TrgSplitter = Lingua::Sentence->new($trgSplitLang);
 
 
 
-
-
 ## print align file header
 print '<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
 <cesAlign version="1.0">
 ';
-print "<linkGrp targType=\"s\" fromDoc=\"$srcfile.gz\" toDoc=\"$trgfile.gz\" >\n";
+print "  <linkGrp targType=\"s\" fromDoc=\"$srcfile\" toDoc=\"$trgfile\" >\n";
 
 
 my $aref = Locale::PO->load_file_asarray($pofile,$encoding);
@@ -102,9 +100,12 @@ my $aref = Locale::PO->load_file_asarray($pofile,$encoding);
 my $sid = 0;
 my $lid = 0;
 foreach my $po (@{$aref}){
-    $sid++;
+
     my $src = $po->dequote($po->msgid);
     my $trg = $po->dequote($po->msgstr);
+    
+    next unless ($src);
+    $sid++;
 
     my @SrcSents = ();
     my @TrgSents = ();
@@ -124,14 +125,12 @@ foreach my $po (@{$aref}){
 
     if (@SrcIds && @TrgIds){
 	$lid++;
-	print '<link xtargets="';
+	print '    <link xtargets="';
 	print join(' ',@SrcIds);
 	print ';';
 	print join(' ',@TrgIds);
 	print '" id="SL'.$lid;
 	print '"/>',"\n";
-	print STDERR '.' if (! ($lid % 1000));
-	print STDERR " $lid\n" if (! ($lid % 50000));
     }
 }
 

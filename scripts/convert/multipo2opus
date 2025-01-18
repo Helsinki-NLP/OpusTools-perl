@@ -1,0 +1,237 @@
+#!/usr/bin/env perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+multipo2opus
+
+=head1 USAGE
+
+multipo2opus [-d outdir] [-o outfile] [-e encoding] file.po [file.po ...]
+
+=head1 OPTIONS
+
+ -d outdir ...... head directpry in which all files and sub-directories will be created (default = .)
+ -o outfile ..... file name for all files (monolingual files, alignment files) (default = data.xml)
+ -e encoding .... character encoding of the PO input files (default = utf8)
+
+=head1 DESCRIPTION
+
+C<po2opus> converts localiztion files in PO format into the OPUS XML-based format. It also does sentence-splitting based on Lingua::Sentence.
+
+
+=head1 LICENSE
+
+ ---------------------------------------------------------------------------
+ Copyright (c) 2004-2019 Joerg Tiedemann
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ ---------------------------------------------------------------------------
+
+=head1 See also
+
+This script is part of opus-tools L<https://github.com/Helsinki-NLP/opus-tools>
+See also OPUS L<http://opus.nlpl.eu> for more information about the corpus.
+
+=cut
+
+
+use strict;
+
+use File::Basename;
+use IO::File;
+use Locale::PO;
+use XML::Writer;
+use Lingua::Sentence;
+
+use vars qw($opt_d $opt_e $opt_o);
+use Getopt::Std;
+getopts('d:e:o:');
+
+my $outdir   = $opt_d || '.';
+my $outfile  = $opt_o || 'data.xml';
+my $encoding = $opt_e || 'utf8';
+
+
+my %MsgStr = ();
+my %MsgIds = ();
+
+foreach my $file (@ARGV){
+
+    ## assume that we can find the language code in the file
+    my $trglang = '';
+    open F,"$file";
+    while (<F>){
+	if (/^"X-Language-Code:\s*(\S*)\"/){
+	    $trglang = $1;
+	    $trglang =~s/\\n//;
+	    $trglang =~tr/\-/\_/;
+	    last;
+	}
+	elsif (/^"Language:\s*(\S*)\"/){
+	    $trglang = $1;
+	    $trglang =~tr/\-/\_/;
+	}
+    }
+    
+    ## if not found: assume that the language string is part of filename
+    unless ($trglang){
+	my @parts = split(/\./,$file);
+	$trglang = $parts[-2] if ($#parts);
+    }
+    $trglang = 'en' unless ($trglang);
+    
+    my $aref = Locale::PO->load_file_asarray($file,$encoding);
+
+    $MsgIds{$trglang} = [];
+    $MsgIds{__index__} = [];
+    foreach my $po (@{$aref}){
+	my $id = $po->dequote($po->msgid);
+	my $str = $po->dequote($po->msgstr);
+
+	next unless ($id);
+	push(@{$MsgIds{__index__}},$id);
+	$MsgStr{'en'}{$id} = $id unless (exists $MsgStr{'en'}{$id});
+	if ($str){
+	    push(@{$MsgIds{$trglang}},$id);
+	    $MsgStr{$trglang}{$id} = $str;
+	}
+    }
+    $MsgIds{'en'} = $MsgIds{__index__} unless (exists $MsgIds{'en'});
+}
+
+
+## write monolingual XML files
+
+my %SentSplitter = ();
+my %SentIds = ();
+
+foreach my $lang (sort keys %MsgStr){
+    my $SentSplitter = sentence_splitter($lang);
+    my $dirname = dirname("$outdir/$lang/$outfile");
+    system("mkdir -p $dirname") unless (-d $dirname);
+    my $XmlWriter = open_output("$outdir/$lang/$outfile");
+
+    my $sid = 0;
+    foreach my $id (@{$MsgIds{$lang}}){
+	my $str = $MsgStr{$lang}{$id};
+	$sid++;
+	my @sents = $SentSplitter->split_array($str);
+	my @ids = write_sentences($XmlWriter,$sid,\@sents);
+	$SentIds{$lang}{$id} = join(' ',@ids);
+    }
+    close_output($XmlWriter);
+}
+
+
+## write sentence alignment files
+
+foreach my $src (sort keys %SentIds){
+    foreach my $trg (sort keys %SentIds){
+	next if ($trg le $src);
+	my $dirname = dirname("$outdir/$src-$trg/$outfile");
+	system("mkdir -p $dirname") unless (-d $dirname);
+	open O,">$outdir/$src-$trg/$outfile" || die "cannot write to $outdir/$src-$trg/$outfile\n";
+	print O '<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE cesAlign PUBLIC "-//CES//DTD XML cesAlign//EN" "">
+<cesAlign version="1.0">
+';
+	print O "  <linkGrp targType=\"s\" fromDoc=\"$src/$outfile\" toDoc=\"$trg/$outfile\" >\n";
+	my $lid=0;
+	foreach (sort {$SentIds{$src}{$a} <=> $SentIds{$src}{$b}} keys %{$SentIds{$src}}){
+	    $lid++;
+	    print O '    <link xtargets="';
+	    print O $SentIds{$src}{$_},';',$SentIds{$trg}{$_};
+	    print O '" id="SL',$lid,'"/>',"\n";
+	}
+	print O "  </linkGrp>\n";
+	print O "</cesAlign>\n";
+	close O;
+    }
+}
+
+
+sub sentence_splitter{
+    my $lang = shift;
+    $lang=~s/[\_\-].*$//;
+    $lang=lc($lang);
+    if ($lang=~/^[a-z]{2}$/){
+	return Lingua::Sentence->new($lang);
+    }
+    return Lingua::Sentence->new('en');
+}
+    
+
+
+
+sub open_output{
+    my $filename = shift;
+
+    my $OutFile = $filename =~/\.gz$/ ? 
+	IO::File->new("| gzip -c > $filename") :
+	IO::File->new(">$filename");
+    binmode($OutFile,":encoding(utf-8)");
+
+    ## open XML writers for corpus documents
+    my $OutWriter = XML::Writer->new( OUTPUT => $OutFile,
+				      DATA_MODE => 1,
+				      DATA_INDENT => 1 );
+    $OutWriter->xmlDecl("UTF-8");
+    $OutWriter->startTag("text");
+    return $OutWriter;
+}
+
+sub close_output{
+    my $OutWriter = shift;
+    $OutWriter->endTag('text');
+    $OutWriter->end();
+}
+
+
+## write sentences and return sentence IDs
+sub write_sentences{
+    my ($writer,$id,$sents) = @_;
+
+    my @ids = ();
+    if ( $#{$sents} ){
+	my %attr = ( 'id' => "p$id" );
+	$writer->startTag('p',%attr);
+	my $sid = 0;
+	foreach my $s (@{$sents}){
+	    $sid++;
+	    my %attr = ( 'id' => $id.'.'.$sid );
+	    $writer->startTag('s',%attr);
+	    $writer->characters($s);
+	    $writer->endTag('s');
+	    push(@ids,$id.'.'.$sid);
+	}
+	$writer->endTag('p');
+    }
+    else{
+	my %attr = ( 'id' => $id );
+	$writer->startTag('s',%attr);
+	$writer->characters($$sents[0]);
+	$writer->endTag('s');
+	push(@ids,$id);
+    }
+    return @ids;
+}
+
+

@@ -39,6 +39,7 @@ install_script 'scripts/convert/opus2moses';
 install_script 'scripts/convert/opus2multi';
 install_script 'scripts/convert/opus2bitext';
 install_script 'scripts/convert/opus2text';
+install_script 'scripts/convert/opus2txt';
 install_script 'scripts/convert/opus2tmx';
 install_script 'scripts/convert/tmx2opus';
 install_script 'scripts/convert/tmx2moses';
@@ -46,6 +47,7 @@ install_script 'scripts/convert/tsv2opus';
 install_script 'scripts/convert/multitsv2opus';
 install_script 'scripts/convert/xml2opus';
 install_script 'scripts/convert/po2opus';
+install_script 'scripts/convert/multipo2opus';
 
 
 
@@ -54,6 +56,7 @@ requires 'CGI'              => 0;
 requires 'Cwd'              => 0;
 requires 'DB_File'          => 0;
 # requires 'CDB_File'         => 0;
+requires 'File::Basename'   => 0;
 requires 'Getopt::Std'      => 0;
 requires 'HTML::Entities'   => 0;
 requires 'IO::File'         => 0;

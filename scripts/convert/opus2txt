@@ -1,0 +1,127 @@
+#!/usr/bin/perl
+#-*-perl-*-
+#
+
+=head1 NAME
+
+opus2txt
+
+=head1 SYNOPSIS
+
+ # convert XML files from OPUS to plain text with one sentence per line
+ # (requires XML::Parser)
+
+ opus2text dir|zipfile
+
+
+=head1 LICENSE
+
+ ---------------------------------------------------------------------------
+ Copyright (c) 2004-2019 Joerg Tiedemann
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+ ---------------------------------------------------------------------------
+
+=head1 See also
+
+This script is part of opus-tools L<https://github.com/Helsinki-NLP/opus-tools>
+See also OPUS L<http://opus.nlpl.eu> for more information about the corpus.
+
+=cut
+
+use FindBin qw($Bin);
+use lib "$Bin/../../lib";
+use OPUS::Tools;
+use XML::Parser;
+
+
+
+my $dir = shift(@ARGV);
+$dir=~s/\.zip$//;
+
+binmode(STDOUT, ":utf8");
+my $ErrorCount=0;
+my $firstline=1;
+foreach my $doc (find_opus_documents($dir)){
+    my $fh;
+    die "cannot open $doc!\n" unless (&open_opus_document(\$fh,$dir,$doc));
+
+    $XmlParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
+					      End => \&XmlTagEnd,
+					      Char => \&XmlChar});
+    $XmlHandler = $XmlParser->parse_start;
+
+    while (defined(my $line = $fh->getline())){
+
+	$line=~s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g;     ## remove control characters
+	$line=~s/&(?!(#\d+|\w+);)/&amp;/g;            ## fix un-escaped XML entities
+
+	eval { $XmlHandler->parse_more($line); };
+	if ($@){
+	    $ErrorCount++;
+	    #	warn $@;              # skip millions of warnings!
+	    #	print STDERR $_;
+	}
+    }
+
+    $XmlHandler->parse_done if ($XmlHandler);
+
+}
+
+print STDERR "$ErrorCount errors found!" if ($ErrorCount);
+
+
+
+
+sub XmlTagStart{
+    my ($p,$e,%a)=@_;
+    if ($e eq 'w'){
+	$p->{STRING} = '';
+	$p->{TOKENIZED} = 1;
+    }
+    elsif ($e eq 's'){
+	@{$p->{WORDS}}=() if ($p->{TOKENIZED});
+	$p->{STRING} = '';
+    }
+}
+
+sub XmlChar{
+    my ($p,$c)=@_;
+    if (exists $p->{STRING}){
+	$p->{STRING}.=$c;
+    }
+}
+
+sub XmlTagEnd{
+    my ($p,$e)=@_;
+    if ($e eq 'w'){
+	push (@{$p->{WORDS}},$p->{STRING}) if (exists $p->{STRING});
+	delete $p->{STRING};
+    }
+    elsif ($e eq 's'){
+	if (@{$p->{WORDS}}){
+	    $p->{STRING} = join(' ',@{$p->{WORDS}});
+	}
+	$p->{STRING}=~s/^\s+//;
+	$p->{STRING}=~s/\s+$//;
+	$p->{STRING}=~s/\s{2,}/ /gs;
+	print $p->{STRING},"\n" if ($p->{STRING});
+	delete $p->{STRING};
+    }
+}

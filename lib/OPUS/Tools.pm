@@ -717,11 +717,15 @@ sub open_zip_file{
 sub open_opus_document{
     my ($fh,$dir,$doc) = @_;
 
-    my ($lang) = split(/\//,$doc);
-    my $zipfile = $dir ? $dir.'/'.$lang.'.zip' : $lang.'.zip';
-
     ## try to open a zip file
+    my $zipfile = $dir.'.zip';
     my $zip = open_zip_file($zipfile);
+    if (!$zip){
+	my ($lang) = split(/\//,$doc);
+	$zipfile = $dir ? $dir.'/'.$lang.'.zip' : $lang.'.zip';
+	$zip = open_zip_file($zipfile);
+    }
+    
     if ($zip){
 	$doc =~s/\.gz$//;                      # remove .gz extension
 	my $FileBase = $CorpusBase{$zipfile};  # file base in the corpus
@@ -762,7 +766,10 @@ sub find_opus_documents{
     ## return files in zip files if available
     my $zip = open_zip_file($dir.'.zip');
     if ($zip){
-	return $zip->memberNames(); 
+	my @files = map { $_->fileName } $zip->membersMatching( ".*\.$ext" );
+	return  map { s/^[^\/]+\/[^\/]+\///r } @files;
+	# return map { $_->fileName } $zip->membersMatching( ".*\.$ext" );
+	# return $zip->memberNames();
     }
 
     my @docs=();

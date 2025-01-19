@@ -48,6 +48,7 @@ use strict;
 use DB_File;
 use Exporter 'import';
 
+use XML::Parser;
 use Archive::Zip qw/ :ERROR_CODES :CONSTANTS /;
 use Archive::Zip::MemberRead;
 use File::Basename qw(dirname basename);
@@ -666,46 +667,65 @@ sub find_opus_document{
 
 
 
-## open zip files and store a handle in ZipFiles
-sub open_zip_file{
-    my $corpus = shift;
-    if (exists $ZipFiles{$corpus}){
-	return $ZipFiles{$corpus};
-    }
-
-    my $zipfile = $corpus;
-    unless (-e $zipfile){
-	my @parts = split(/\//,$zipfile);
-	if ($#parts){
-	    $parts[-2] = 'raw';
-	    $zipfile = join('/',@parts);
+sub find_zip_file{
+    my ($zipfile,$doc) = @_;
+    return $zipfile if ($zipfile && exists $ZipFiles{$zipfile});
+    
+    unless ($zipfile=~/\.zip$/ && -e $zipfile){
+	if (-e $zipfile.'.zip'){
+	    $zipfile .= '.zip';
+	}
+	else{
+	    my ($lang) = split(/\//,$doc);
+	    my @path = split(/\//,$zipfile);
+	    push(@path,$lang);
+	    $zipfile = join('/',@path) . '.zip';
+	    unless (-e $zipfile){
+		if ($#path){
+		    $path[-2] = 'raw';
+		    $zipfile = join('/',@path) . '.zip';
+		}
+	    }
 	}
     }
+
+    return $zipfile if (-e $zipfile);
+    return undef;
+}
+
+
+
+## open zip files and store a handle in ZipFiles
+sub open_zip_file{
+
+    my $zipfile = shift;
+    return $ZipFiles{$zipfile} if (exists $ZipFiles{$zipfile});
+    
     if (-e $zipfile){
-	$ZipFiles{$corpus} = Archive::Zip->new($zipfile);
+	$ZipFiles{$zipfile} = Archive::Zip->new($zipfile);
 	my $basename = basename($zipfile);
 	$basename =~s/\.zip$//;
-	my $fh = Archive::Zip::MemberRead->new($ZipFiles{$corpus},
+	my $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},
 					       $basename.'/'.'INFO');
 	unless ($fh->{member}){
-	    $fh = Archive::Zip::MemberRead->new($ZipFiles{$corpus},'INFO');
+	    $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},'INFO');
 	}
 	if ($fh->{member}){
 	    my $line = $fh->getline();
 	    my ($name,$type) = split(/\//,$line);
-	    $CorpusBase{$corpus} = $name.'/'.$type;
+	    $CorpusBase{$zipfile} = $name.'/'.$type;
 	}
 	else{
-	    print STDERR "No INFO file found in $zipfile\n";
-	    my ($memberFile) = $ZipFiles{$corpus}->membersMatching( '.*\.xml' );
+	    # print STDERR "No INFO file found in $zipfile\n";
+	    my ($memberFile) = $ZipFiles{$zipfile}->membersMatching( '.*\.xml' );
 	    my @path = split(/\//,$memberFile->fileName);
 	    if ($#path > 2){
 		if (! iso639_exists($path[0])){
-		    $CorpusBase{$corpus} = $path[0].'/'.$path[1];
+		    $CorpusBase{$zipfile} = $path[0].'/'.$path[1];
 		}
 	    }
 	}
-	return $ZipFiles{$corpus} if ($ZipFiles{$corpus});
+	return $ZipFiles{$zipfile} if ($ZipFiles{$zipfile});
     }
 
     delete $ZipFiles{$zipfile};
@@ -717,15 +737,8 @@ sub open_zip_file{
 sub open_opus_document{
     my ($fh,$dir,$doc) = @_;
 
-    ## try to open a zip file
-    my $zipfile = $dir.'.zip';
+    my $zipfile = find_zip_file($dir,$doc);
     my $zip = open_zip_file($zipfile);
-    if (!$zip){
-	my ($lang) = split(/\//,$doc);
-	$zipfile = $dir ? $dir.'/'.$lang.'.zip' : $lang.'.zip';
-	$zip = open_zip_file($zipfile);
-    }
-    
     if ($zip){
 	$doc =~s/\.gz$//;                      # remove .gz extension
 	my $FileBase = $CorpusBase{$zipfile};  # file base in the corpus
@@ -751,22 +764,24 @@ sub open_opus_document{
 
 =head1
 
-find_opus_documents($dir,$ext[,$mindepth[,$depth]])
+find_opus_documents($dir[,$pattern[,$mindepth[,$depth]]])
 
 =cut
 
 sub find_opus_documents{
     my $dir      = shift;
-    my $ext      = shift;
+    my $pattern  = shift;
     my $mindepth = shift;
     my $depth    = shift;
 
-    my $ext = 'xml' unless (defined $ext);
+    my $ext = 'xml';
+    $pattern = '.*\.'.$ext unless (defined $pattern);
 
     ## return files in zip files if available
-    my $zip = open_zip_file($dir.'.zip');
+    my $zipfile = find_zip_file($dir,$pattern);
+    my $zip = open_zip_file($zipfile);
     if ($zip){
-	my @files = map { $_->fileName } $zip->membersMatching( ".*\.$ext" );
+	my @files = map { $_->fileName } $zip->membersMatching( $pattern );
 	return  map { s/^[^\/]+\/[^\/]+\///r } @files;
 	# return map { $_->fileName } $zip->membersMatching( ".*\.$ext" );
 	# return $zip->memberNames();
@@ -777,7 +792,7 @@ sub find_opus_documents{
 	my @files = grep { /^[^\.]/ } readdir(DIR);
 	closedir DIR;
 	foreach my $f (@files){
-	    if (-f "$dir/$f" && $f=~/\.$ext(.gz)?$/){
+	    if (-f "$dir/$f" && $f=~/$pattern$/){
 		if ((not defined($mindepth)) ||
 		    ($depth>=$mindepth)){
 		    push (@docs,"$dir/$f");
@@ -785,7 +800,7 @@ sub find_opus_documents{
 	    }
 	    if (-d "$dir/$f"){
 		$depth++;
-		push (@docs,FindDocuments("$dir/$f",$ext,$mindepth,$depth));
+		push (@docs,find_opus_documents("$dir/$f",$pattern,$mindepth,$depth));
 	    }
 	}
     }

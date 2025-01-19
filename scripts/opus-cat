@@ -10,7 +10,13 @@ opus-cat - read a document from OPUS and print to STDOUT
 
  opus-cat file.xml
  opus-cat file.xml.gz
- opus-cat corpusname/lang file
+ opus-cat [-l] [-t] [corpus] [file-pattern]
+
+   <corpus> ........ name of the corpus, corpus+lang or path to corpus zipfile
+   <file-pattern> .. file name or file pattern (regex) of corpus documents
+   -l .............. list all document names in the selected corpus
+   -t .............. parse XML and print plain text
+
 
 =head1 DESCRIPTION
 
@@ -55,19 +61,132 @@ use FindBin qw($Bin);
 use lib $Bin.'/../lib';
 use OPUS::Tools;
 
+use vars qw($opt_l $opt_t);
+use Getopt::Std;
+getopts('lt');
+
 
 my ($dir,$doc);
 if ($#ARGV){
     ($dir,$doc) = @ARGV;
 }
 else{
-    ($doc) = @ARGV;
+    if ($ARGV[0]=~/\.zip/ || -e $ARGV[0].'.zip' || -d $ARGV[0]){
+	$dir = $ARGV[0];
+    }
+    else{
+	$doc = $ARGV[0];
+    }
 }
 
-my $fh;
-open_opus_document(\$fh,$dir,$doc);
-while (defined(my $line = $fh->getline())){
-    chomp $line;
-    print $line,"\n";
+
+
+if ($opt_l){
+    list_documents($dir,$doc);
+}
+elsif ($opt_t){
+    parse_documents($dir,$doc);
+}
+else{
+    print_documents($dir,$doc);
 }
 
+
+
+
+
+sub list_documents{
+    my ($dir,$doc) = @_;
+    foreach my $d (find_opus_documents($dir,$doc)){
+	print $d,"\n";
+    }
+}
+
+sub print_documents{
+    my ($dir,$doc) = @_;
+    foreach my $d (find_opus_documents($dir,$doc)){
+	my $fh;
+	open_opus_document(\$fh,$dir,$d);
+	while (defined(my $line = $fh->getline())){
+	    chomp $line;
+	    print $line,"\n";
+	}
+    }
+}
+
+
+
+sub parse_documents{
+    my ($dir,$doc) = @_;
+    
+    my $ErrorCount=0;
+    my $firstline=1;
+    binmode(STDOUT, ":utf8");
+    
+    foreach my $d (find_opus_documents($dir,$doc)){
+	my $fh;
+	die "cannot open $d!\n" unless (&open_opus_document(\$fh,$dir,$d));
+
+	my $XmlParser = new XML::Parser(Handlers => {Start => \&XmlTagStart,
+						  End => \&XmlTagEnd,
+						  Char => \&XmlChar});
+	my $XmlHandler = $XmlParser->parse_start;
+
+	while (defined(my $line = $fh->getline())){
+
+	    $line=~s/[\x00-\x08\x0B\x0C\x0E-\x1F]//g;     ## remove control characters
+	    $line=~s/&(?!(#\d+|\w+);)/&amp;/g;            ## fix un-escaped XML entities
+
+	    eval { $XmlHandler->parse_more($line); };
+	    if ($@){
+		$ErrorCount++;
+		#	warn $@;              # skip millions of warnings!
+		#	print STDERR $_;
+	    }
+	}
+
+	$XmlHandler->parse_done if ($XmlHandler);
+
+    }
+    print STDERR "$ErrorCount errors found!" if ($ErrorCount);
+}
+
+
+
+
+sub XmlTagStart{
+    my ($p,$e,%a)=@_;
+    if ($e eq 'w'){
+	$p->{STRING} = '';
+	$p->{TOKENIZED} = 1;
+    }
+    elsif ($e eq 's'){
+	@{$p->{WORDS}}=() if ($p->{TOKENIZED});
+	$p->{STRING} = '';
+    }
+}
+
+sub XmlChar{
+    my ($p,$c)=@_;
+    if (exists $p->{STRING}){
+	$p->{STRING}.=$c;
+    }
+}
+
+sub XmlTagEnd{
+    my ($p,$e)=@_;
+    if ($e eq 'w'){
+	push (@{$p->{WORDS}},$p->{STRING}) if (exists $p->{STRING});
+	delete $p->{STRING};
+    }
+    elsif ($e eq 's'){
+	if (exists $p->{WORDS}){
+	    $p->{STRING} = join(' ',@{$p->{WORDS}});
+	}
+	$p->{STRING}=~s/^\s+//;
+	$p->{STRING}=~s/\s+$//;
+	$p->{STRING}=~s/\s{2,}/ /gs;
+	print $p->{STRING},"\n" if ($p->{STRING});
+	delete $p->{STRING};
+    }
+}

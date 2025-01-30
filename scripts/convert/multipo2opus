@@ -146,6 +146,7 @@ foreach my $lang (sort keys %MsgStr){
 foreach my $src (sort keys %SentIds){
     foreach my $trg (sort keys %SentIds){
 	next if ($trg le $src);
+	next unless (keys %{$SentIds{$trg}});
 	my $dirname = dirname("$outdir/$src-$trg/$outfile");
 	system("mkdir -p $dirname") unless (-d $dirname);
 	open O,">$outdir/$src-$trg/$outfile" || die "cannot write to $outdir/$src-$trg/$outfile\n";
@@ -156,10 +157,12 @@ foreach my $src (sort keys %SentIds){
 	print O "  <linkGrp targType=\"s\" fromDoc=\"$src/$outfile\" toDoc=\"$trg/$outfile\" >\n";
 	my $lid=0;
 	foreach (sort {$SentIds{$src}{$a} <=> $SentIds{$src}{$b}} keys %{$SentIds{$src}}){
-	    $lid++;
-	    print O '    <link xtargets="';
-	    print O $SentIds{$src}{$_},';',$SentIds{$trg}{$_};
-	    print O '" id="SL',$lid,'"/>',"\n";
+	    if ($SentIds{$trg}{$_}){
+		$lid++;
+		print O '    <link xtargets="';
+		print O $SentIds{$src}{$_},';',$SentIds{$trg}{$_};
+		print O '" id="SL',$lid,'"/>',"\n";
+	    }
 	}
 	print O "  </linkGrp>\n";
 	print O "</cesAlign>\n";

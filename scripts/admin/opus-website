@@ -30,12 +30,11 @@ use lib "$Bin/../../lib";
 use OPUS::Tools;
 use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
-our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r, $opt_S);
-getopts('s:m:o:d:h:r:S');
+our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r, $opt_S, $opt_x);
+getopts('s:m:o:d:h:r:Sx:');
 
 my $PWD     = $ENV{PWD};
 
-my $xmldir  = 'xml';
 my @paths   = split(/\//,$PWD);
 my $CORPUS  = $paths[-1];
 my $VERSION = $opt_r || 'v1';
@@ -68,6 +67,7 @@ my $RELEASEBASE = $CORPUS;
 $RELEASEBASE   .= '/'.$VERSION if ($VERSION);
 my $RELEASEDIR  = $RELEASEHOME.'/'.$RELEASEBASE;
 my $INFODIR     = $RELEASEDIR.'/info';
+my $xmldir      = $opt_x || $RELEASEDIR.'/xml';
 
 #-------------------------------------------------------------------------
 
@@ -210,13 +210,17 @@ sub GetBitexts{
     my @files=readdir(DIR);
     closedir DIR;
 
-    my @subdir=grep {-d "$xmldir/$_" } @files;
+    
+    my @langs = map { s/\.zip//r } grep { /\.zip/ } @files;
+    unless (@langs){
+	my @langs=grep {-d "$xmldir/$_" } @files;
+    }
     my @algfiles=grep { /\.xml/ } @files;
     my %alg=();
     foreach (@algfiles){$alg{$_}=1;}
 
-    foreach my $s (@subdir){
-	foreach my $t (@subdir){
+    foreach my $s (@langs){
+	foreach my $t (@langs){
 	    if (exists $alg{"$s-$t.xml.gz"}){
 		$$lang{$s}="$xmldir/$s";
 		$$lang{$t}="$xmldir/$t";

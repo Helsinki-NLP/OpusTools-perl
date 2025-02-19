@@ -119,11 +119,11 @@ use XML::Writer;
 ## all options from opus2moses
 ## How much do we want to be compatible?
 use vars qw($opt_1 $opt_b $opt_c $opt_C $opt_d $opt_D $opt_e $opt_E $opt_f $opt_h 
-            $opt_I $opt_i $opt_l $opt_m $opt_M $opt_n $opt_p $opt_r 
-            $opt_s $opt_S $opt_t $opt_u $opt_U $opt_v $opt_w $opt_W $opt_x);
+            $opt_I $opt_i $opt_l $opt_m $opt_M $opt_n $opt_O $opt_p $opt_r 
+            $opt_s $opt_S $opt_t $opt_T $opt_u $opt_U $opt_v $opt_w $opt_W $opt_x);
 use Getopt::Std;
 
-getopts('b:c:C:s:t:d:Dn:iIe:Ef:hp:l1x:u:U:vw:W:rmMS');
+getopts('b:c:C:s:t:d:Dn:iIe:Ef:hO:p:l1x:u:U:vw:W:rmMST:');
 
 my $CorpusDir = $opt_d || '.';
 
@@ -160,6 +160,10 @@ my $countSrcWords = 0;
 my $countTrgWords = 0;
 
 my $lastNrOfWords = 0;
+
+
+my $OpusCorpusName = $opt_O;
+my $OpusCorpusType = $opt_T;
 
 while ( &read_linkgrp($AlignHandler,\$SrcDoc,\$TrgDoc,\@Links, 
 		      '-include-empty'   => $opt_E,
@@ -326,7 +330,7 @@ sub read_sentences{
     $XmlHandler->{__IDX__}         = $idx   || {};
 
     my $fh;
-    die "cannot open $doc!\n" unless (&open_opus_document(\$fh,$dir,$doc));
+    die "cannot open $doc!\n" unless (&open_opus_document(\$fh,$dir,$doc,$OpusCorpusName,$OpusCorpusType));
 
     my $NrOfSents = scalar(keys %{$links});
     while (defined(my $line = $fh->getline())){

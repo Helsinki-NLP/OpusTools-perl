@@ -183,7 +183,7 @@ while (<$fh>){
 	if ($srcdoc ne $1){
 	    $srcdoc = $1;
 	    unless ($FilterMode){
-		open_opus_document(\$SrcHandle,$CorpusDir,$srcdoc);
+		open_opus_document(\$SrcHandle,$CorpusDir,$srcdoc,$CorpusName,$CorpusType);
 	    }
 	    print STDERR "read $srcdoc - " if ($VERBOSE);
 	}
@@ -192,7 +192,7 @@ while (<$fh>){
 	if ($trgdoc ne $1){
 	    $trgdoc = $1;
 	    unless ($FilterMode){
-		open_opus_document(\$TrgHandle,$CorpusDir,$trgdoc);
+		open_opus_document(\$TrgHandle,$CorpusDir,$trgdoc,$CorpusName,$CorpusType);
 		unless ($TSVmode){
 		    if ($html){print "<p>\n";}
 		    print "\n# ".$srcdoc;
@@ -309,10 +309,10 @@ TRGSENT:        foreach (@trgsent){
 		    }
                 }
 		if ($trgeof){
-		    open_opus_document(\$TrgHandle,$CorpusDir,$trgdoc);
+		    open_opus_document(\$TrgHandle,$CorpusDir,$trgdoc,$CorpusName,$CorpusType);
 		}
 		if ($srceof){
-		    open_opus_document(\$SrcHandle,$CorpusDir,$srcdoc);
+		    open_opus_document(\$SrcHandle,$CorpusDir,$srcdoc,$CorpusName,$CorpusType);
 		}
 		$/=$oldDel;
 		if ($SrcStr && $TrgStr){

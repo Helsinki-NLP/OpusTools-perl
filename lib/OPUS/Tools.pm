@@ -577,6 +577,7 @@ sub find_bitext{
 	    $CorpusDir = join('/',($OPUS_CORPUS,$CorpusName,$CorpusType));
 	}
     }
+    $CorpusDir = '.' unless (-d $CorpusDir);
     return ($Bitext,$CorpusDir);
 }
 
@@ -699,29 +700,43 @@ sub find_zip_file{
 sub open_zip_file{
 
     my $zipfile = shift;
+    my ($CorpusName, $CorpusType) = @_;
+    
     return $ZipFiles{$zipfile} if (exists $ZipFiles{$zipfile});
     
     if (-e $zipfile){
 	$ZipFiles{$zipfile} = Archive::Zip->new($zipfile);
-	my $basename = basename($zipfile);
-	$basename =~s/\.zip$//;
-	my $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},
-					       $basename.'/'.'INFO');
-	unless ($fh->{member}){
-	    $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},'INFO');
-	}
-	if ($fh->{member}){
-	    my $line = $fh->getline();
-	    my ($name,$type) = split(/\//,$line);
-	    $CorpusBase{$zipfile} = $name.'/'.$type;
+
+	## set the base filepath for all documents in the zip file
+	## - either from given parameters
+	## - or from INFO file in the zip-archive
+	## - or initial 2 directories from any XML file in the archive
+	##   (this can be an expensive operation if the zip-dir is big)
+	
+	if ($CorpusName && $CorpusType){
+	    $CorpusBase{$zipfile} = $CorpusName.'/'.$CorpusType;
 	}
 	else{
-	    # print STDERR "No INFO file found in $zipfile\n";
-	    my ($memberFile) = $ZipFiles{$zipfile}->membersMatching( '.*\.xml' );
-	    my @path = split(/\//,$memberFile->fileName);
-	    if ($#path > 2){
-		if (! iso639_exists($path[0])){
-		    $CorpusBase{$zipfile} = $path[0].'/'.$path[1];
+	    my $basename = basename($zipfile);
+	    $basename =~s/\.zip$//;
+	    my $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},
+						   $basename.'/'.'INFO');
+	    unless ($fh->{member}){
+		$fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},'INFO');
+	    }
+	    if ($fh->{member}){
+		my $line = $fh->getline();
+		my ($name,$type) = split(/\//,$line);
+		$CorpusBase{$zipfile} = $name.'/'.$type;
+	    }
+	    else{
+		# print STDERR "No INFO file found in $zipfile\n";
+		my ($memberFile) = $ZipFiles{$zipfile}->membersMatching( '.*\.xml' );
+		my @path = split(/\//,$memberFile->fileName);
+		if ($#path > 2){
+		    if (! iso639_exists($path[0])){
+			$CorpusBase{$zipfile} = $path[0].'/'.$path[1];
+		    }
 		}
 	    }
 	}
@@ -735,10 +750,10 @@ sub open_zip_file{
 
 ## make some guesses to find a document if the path in doc does not exist
 sub open_opus_document{
-    my ($fh,$dir,$doc) = @_;
+    my ($fh,$dir,$doc, $CorpusName, $CorpusType) = @_;
 
     my $zipfile = find_zip_file($dir,$doc);
-    my $zip = open_zip_file($zipfile);
+    my $zip = open_zip_file($zipfile, $CorpusName, $CorpusType);
     if ($zip){
 	$doc =~s/\.gz$//;                      # remove .gz extension
 	my $FileBase = $CorpusBase{$zipfile};  # file base in the corpus
@@ -773,13 +788,14 @@ sub find_opus_documents{
     my $pattern  = shift;
     my $mindepth = shift;
     my $depth    = shift;
+    my ($CorpusName, $CorpusType) = @_;
 
     my $ext = 'xml';
     $pattern = '.*\.'.$ext unless (defined $pattern);
 
     ## return files in zip files if available
     my $zipfile = find_zip_file($dir,$pattern);
-    my $zip = open_zip_file($zipfile);
+    my $zip = open_zip_file($zipfile, $CorpusName, $CorpusType);
     if ($zip){
 	my @files = map { $_->fileName } $zip->membersMatching( $pattern );
 	return  map { s/^[^\/]+\/[^\/]+\///r } @files;

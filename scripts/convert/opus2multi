@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 #-*-perl-*-
 #
 #------------------------------------------------------------------------------
@@ -239,8 +239,10 @@ foreach my $l (@languages){
 	next unless (/Doc=\"/);
 	if (/Doc=\"$pivot\/([^"]+)"/){
 	    $EnglishDoc=$1;
+	    $EnglishDoc=~s/\.gz$//;
 	    if (/Doc=\"$l\/([^"]+)"/){
 		$ForeignDoc=$1;
+		$ForeignDoc=~s/\.gz$//;
 	    }
 	}
 	next unless ($EnglishDoc && $ForeignDoc);
@@ -539,8 +541,10 @@ sub get_common_docs{
 	while (<F>){
 	    if (/Doc=\"$pivot\/([^"]+)"/){
 		my $doc=$1;
+		$doc=~s/\.gz$//;
 		if (/Doc=\"$l\/([^"]+)"/){
 		    $$docs{$doc}{$l}=$1;
+		    $$docs{$doc}{$l}=~s/\.gz$//;
 		    $counts{$l}++;
 		    # if ($opt_i && $opt_v){
 		    # 	my ($year,$movie,$subid) = split(/\//,$$docs{$doc}{$l});
@@ -608,9 +612,11 @@ sub get_intralingual_links{
     while (<F>){
 	if (/fromDoc=\"[^\/]+\/([^"]+)"/){
 	    $fromDoc = $1;
+	    $fromDoc=~s/\.gz$//;
 	}
 	if (/toDoc=\"[^\/]+\/([^"]+)"/){
 	    $toDoc = $1;
+	    $toDoc=~s/\.gz$//;
 	}
 	if (/xtargets=\"([^"]+)"/){
 	    my $link = $1;
@@ -636,9 +642,11 @@ sub read_intralingual_links{
     while (<F>){
 	if (/fromDoc=\"[^\/]+\/([^"]+)"/){
 	    $fromDoc = $1;
+	    $fromDoc=~s/\.gz$//;
 	}
 	if (/toDoc=\"[^\/]+\/([^"]+)"/){
 	    $toDoc = $1;
+	    $toDoc=~s/\.gz$//;
 	    $$linked{$toDoc}{$fromDoc} = undef;
 	    $$linked{$fromDoc}{$toDoc} = undef;
 	    $count++;

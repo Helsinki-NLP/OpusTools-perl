@@ -110,7 +110,8 @@ my ($linkfile2, $pivotDoc2, $toDoc) = &extract_links($algfile2,$rev2);
 ## merge the sorted linkfiles and extract transitive links
 ## print links to stdout in XCES-align-like format
 
-print STDERR "merge links from '$fromDoc' to '$toDoc' via pivot '$pivotDoc1'\n";
+# print STDERR "merge links from '$fromDoc' to '$toDoc' via pivot '$pivotDoc1'\n";
+print STDERR "merge links\n";
 
 open S,"<$linkfile1" || die "cannot read from $linkfile1";
 open T,"<$linkfile2" || die "cannot read from $linkfile2";
@@ -119,10 +120,10 @@ my $XmlWriter = XML::Writer->new( DATA_MODE => 1, DATA_INDENT => 1 );
 $XmlWriter->xmlDecl("UTF-8");
 $XmlWriter->doctype('cesAlign', "-//CES//DTD XML cesAlign//EN", "");
 $XmlWriter->startTag('cesAlign','version' => '1.0');
-$XmlWriter->startTag('linkGrp',
-		     'targType' => 's',
-		     'fromDoc'  => $fromDoc,
-		     'toDoc'    => $toDoc);
+# $XmlWriter->startTag('linkGrp',
+#		     'targType' => 's',
+#		     'fromDoc'  => $fromDoc,
+#		     'toDoc'    => $toDoc);
 
 
 my $line = <T>;
@@ -131,6 +132,8 @@ my ($alg2_score, $alg2_pivot, $alg2_links) = split(/\t/);
 
 my $LinkID=0;
 my $LastPivot;
+my $LastFromDoc;
+my $LastToDoc;
 
 while (<S>){
     my ($alg1_score, $alg1_pivot, $alg1_links) = split(/\t/);
@@ -148,12 +151,29 @@ while (<S>){
 	}
 	chomp($alg1_links);
 	chomp($alg2_links);
+
+	my ($fromDoc,$fromLinks) = split(/\\/,$alg1_links);
+	my ($toDoc,$toLinks)     = split(/\\/,$alg2_links);
+
+	if ($fromDoc ne $LastFromDoc || $toDoc ne $LastToDoc){
+	    if ($LastFromDoc || $LastToDoc){
+		$XmlWriter->endTag('linkGrp');
+	    }
+	    $XmlWriter->startTag('linkGrp',
+				 'targType' => 's',
+				 'fromDoc'  => $fromDoc,
+				 'toDoc'    => $toDoc);
+	    $LastFromDoc = $fromDoc;
+	    $LastToDoc   = $toDoc;
+	}
+
+	
 	$LinkID++;
 	$LastPivot = $alg1_pivot;
 	my $AvgScore = ($alg1_score + $alg2_score)/2;
 	$XmlWriter->emptyTag( 'link',
 			      'id' => 'L'.$LinkID,
-			      'xtargets' => join(';',($alg1_links,$alg2_links)),
+			      'xtargets' => join(';',($fromLinks,$toLinks)),
 			      's2p_score' => $alg1_score,
 			      'p2t_score' => $alg2_score,
 			      'score' => $AvgScore );
@@ -161,7 +181,10 @@ while (<S>){
     }
 }
 
-$XmlWriter->endTag('linkGrp');
+if ($LastFromDoc || $LastToDoc){
+    $XmlWriter->endTag('linkGrp');
+}
+# $XmlWriter->endTag('linkGrp');
 $XmlWriter->endTag('cesAlign');
 
 close S;
@@ -193,7 +216,7 @@ sub extract_links{
 
     my ($fh, $linkfile) = tempfile();
     close $fh;
-    $XMLHandler->{OUT} = IO::File->new("| sort -k2,2 -k1,1nr > $linkfile");
+    $XMLHandler->{OUT} = IO::File->new("| sort -t'	' -k2,2 -k1,1nr > $linkfile");
     $XMLHandler->{REVERSE} = $reverse;
 
     while (<I>){
@@ -225,10 +248,10 @@ sub XmlTagStart{
 	}
 	my $fh = $p->{OUT};
 	if ($p->{REVERSE}){
-	    print $fh "$score\t$t\t$s\n";
+	    print $fh "$score\t$p->{TODOC}\\$t\t$p->{FROMDOC}\\$s\n";
 	}
 	else{
-	    print $fh "$score\t$s\t$t\n";
+	    print $fh "$score\t$p->{FROMDOC}\\$s\t$p->{TODOC}\\$t\n";
 	}
     }
     elsif ($e eq 'linkGrp'){

@@ -30,8 +30,8 @@ use lib "$Bin/../../lib";
 use OPUS::Tools;
 use OPUS::Tools::ISO639 qw / iso639_TwoToThree iso639_ThreeToName /;
 
-our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r, $opt_S, $opt_x);
-getopts('s:m:o:d:h:r:Sx:');
+our ($opt_s, $opt_m, $opt_o, $opt_d, $opt_h, $opt_r, $opt_S, $opt_x, $opt_X);
+getopts('s:m:o:d:h:r:Sx:X:');
 
 my $PWD     = $ENV{PWD};
 
@@ -68,6 +68,7 @@ $RELEASEBASE   .= '/'.$VERSION if ($VERSION);
 my $RELEASEDIR  = $RELEASEHOME.'/'.$RELEASEBASE;
 my $INFODIR     = $RELEASEDIR.'/info';
 my $xmldir      = $opt_x || $RELEASEDIR.'/xml';
+my $rawdir      = $opt_X || $RELEASEDIR.'/raw';
 
 #-------------------------------------------------------------------------
 
@@ -78,7 +79,7 @@ my %bitexts;
 my %lang;
 
 print STDERR "find all bitexts in the corpus ...\n";
-&GetBitexts($xmldir,\%lang,\%bitexts);
+&GetBitexts($rawdir,$xmldir,\%lang,\%bitexts);
 
 ## TODO: can we skip this now?
 print STDERR "store info in DB ...\n";
@@ -116,14 +117,14 @@ if (-e "$RELEASEDIR/$CORPUS.tar.gz"){
 
 print '<table><tr><td>Bottom-left triangle: download files';
 print '<ul><li><i>ces</i> = sentence alignments in XCES format</li> ';
-print '<li><i>leftmost column language IDs</i> = tokenized corpus files in XML</li> ';
+print '<li><i>leftmost column language IDs</i> = untokenized corpus files in XML</li> ';
 print '<li>TMX and plain text files (Moses): see "Statistics" below</li> ';
 print '<li><i>lower row language IDs</i> = parsed corpus files (if they exist)</li></ul></td>';
 # print &br();
 print '<td>Upper-right triangle: ';
 print 'sample files <ul><li><i>view</i> = bilingual XML file samples</li> ';
 print '<li><i>upper row language IDs</i> = monolingual XML file samples</li> ';
-print '<li><i>rightmost column language IDs</i> = untokenized corpus files</li></ul></td></tr></table>';
+print '<li><i>rightmost column language IDs</i> = tokenized corpus files</li></ul></td></tr></table>';
 print &p();
 print $download.&p();
 
@@ -143,7 +144,8 @@ unless ($opt_S){
 	print &br();
 	print "Language ID's, first column: monolingual plain text files (untokenized)";
 	print $lang.&p();
-	print 'Note that TMX files only contain unique translation units and, therefore, the number of aligned units is smaller than for the distributions in Moses and XML format. Moses downloads include all non-empty alignment units including duplicates. Token counts for each language also include duplicate sentences and documents.'.&p();
+	# print 'Note that TMX files only contain unique translation units and, therefore, the number of aligned units is smaller than for the distributions in Moses and XML format. Moses downloads include all non-empty alignment units including duplicates. Token counts for each language also include duplicate sentences and documents.'.&p();
+	print 'Moses downloads include all non-empty alignment units including duplicates. Token counts for each language also include duplicate sentences and documents and non-aligned sentences.'.&p();
     }
 }
 
@@ -202,18 +204,23 @@ sub MakeSampleFiles{
 #-------------------------------------------------------------------------
 
 sub GetBitexts{
+    my $rawdir=shift;
     my $xmldir=shift;
     my $lang=shift;
     my $bitexts=shift;
+
+    opendir(DIR, $rawdir);
+    my @rawfiles=readdir(DIR);
+    closedir DIR;
 
     opendir(DIR, $xmldir);
     my @files=readdir(DIR);
     closedir DIR;
 
     
-    my @langs = map { s/\.zip//r } grep { /\.zip/ } @files;
+    my @langs = map { s/\.zip//r } grep { /\.zip/ } @rawfiles;
     unless (@langs){
-	my @langs=grep {-d "$xmldir/$_" } @files;
+	my @langs=grep {-d "$rawdir/$_" } @rawfiles;
     }
     my @algfiles=grep { /\.xml/ } @files;
     my %alg=();
@@ -461,6 +468,7 @@ sub BitextStatistics{
     }
 
     if (-e $bitext){
+	print STDERR "get link count from $bitext\n";
 	$nrLinks=`gzip -cd  $bitext | grep '<link ' | wc -l`;
 	chomp($nrLinks);
     }
@@ -483,7 +491,7 @@ sub TMXStatistics{
 	chomp($nrTrgTok = <F>);
 	close F;
     }
-    else{ return &BitextStatistics($bitext); }
+    # else{ return &BitextStatistics($bitext); }
     return ($nrLinks,$nrSrcTok,$nrTrgTok);
 }
 
@@ -502,7 +510,7 @@ sub MosesStatistics{
 	chomp($nrTrgTok = <F>);
 	close F;
     }
-    else{ return &BitextStatistics($bitext); }
+    # else{ return &BitextStatistics($bitext); }
     return ($nrLinks,$nrSrcTok,$nrTrgTok);
 }
 
@@ -598,6 +606,7 @@ sub DownloadTable{
     }
 
     my $HTML="<table border=\"0\" cellpadding=\"0\">\n<tr>\n<th></th>\n";
+    $HTML.="<th>files</th><th>tokens</th><th>sentences</th>\n";
 
     #---------------------------------
     # first line: links to sub-dir's
@@ -617,6 +626,7 @@ sub DownloadTable{
     #---------------------------------------
     $TRGCOUNT=0;
     foreach my $i (0..$#LANG){
+	
 	$SRCCOUNT=0;
 	$TRGCOUNT++;
 	if ($TRGCOUNT>$MAXLANG){
@@ -635,7 +645,18 @@ sub DownloadTable{
 	}
 	$SRCCOUNT=0;
 
-	$HTML.="<tr><th><a rel=\"nofollow\" href=\"download.php?f=$RELEASEBASE/xml/$LANG[$i].zip\">$LANG[$i]</a></th>\n";
+	
+	if (-e "$RELEASEDIR/raw/$LANG[$i].zip"){
+	    $HTML.="<tr><th><a rel=\"nofollow\" href=\"download.php?f=$RELEASEBASE/raw/$LANG[$i].zip\">$LANG[$i]</a></th>\n";
+	}
+	else{
+	    $HTML.="<tr><th>$LANG[$i]</th>\n";
+	}
+
+	my ($nrFiles,$nrSents,$nrTokens) = &LanguageStatistics($$lang{$LANG[$i]});
+	$HTML .= '<td>'.&thousands($nrFiles).'</td>';
+	$HTML .= '<td>'.pretty_number($nrTokens).'</td>';
+	$HTML .= '<td>'.pretty_number($nrSents).'</td>';	    
 
 	foreach my $j (0..$i-1){
 	    $SRCCOUNT++;
@@ -658,11 +679,14 @@ sub DownloadTable{
 		my ($nrFiles,$nrLinks,$nrSrc,$nrTrg) = &CESStatistics($bitext);
 
 		my $title="sentence alignments for '$SrcLang-$TrgLang' (";
-		$title .= &thousands($nrFiles)." aligned documents, " if ($nrFiles>1);
-		$title .= &pretty_number($nrLinks)." links, " if ($nrLinks);
-		$title .= &pretty_number($nrSrc+$nrTrg);
-		$title .= " tokens)";
-		$HTML.="<td><a rel=\"nofollow\" title=\"$title\" href=\"download.php?f=$RELEASEBASE/xml/$ces\">ces</a></td>\n";
+		$title .= &thousands($nrFiles)." aligned documents" if ($nrFiles>1);
+		$title .= &pretty_number($nrLinks)." links"         if ($nrLinks);
+		$title .= &pretty_number($nrSrc+$nrTrg)." tokens"   if ($nrSrc+$nrTrg);
+		$title .= ")";
+		# my $bgcolor = ($nrSrc+$nrTrg) ? size_color($nrSrc+$nrTrg) : size_color($nrLinks*10);
+		my $bgcolor = size_color($nrLinks*10);
+		$HTML .= "<td bgcolor='$bgcolor'>";
+		$HTML .= "<a rel=\"nofollow\" title=\"$title\" href=\"download.php?f=$RELEASEBASE/xml/$ces\">ces</a></td>\n";
 	    }
 	    else{$HTML.="<td></td>\n";}
 	}
@@ -737,8 +761,8 @@ sub DownloadTable{
 	}
 
 	# download links for untokenized corpus files
-	if (-e "$RELEASEDIR/raw/$LANG[$i].zip"){
-	    $HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$RELEASEBASE/raw/$LANG[$i].zip\">$LANG[$i]</a></th></tr>\n";
+	if (-e "$RELEASEDIR/xml/$LANG[$i].zip"){
+	    $HTML.="<th><a rel=\"nofollow\" href=\"download.php?f=$RELEASEBASE/xml/$LANG[$i].zip\">$LANG[$i]</a></th></tr>\n";
 	}
 	else{
 	    $HTML.="<th>$LANG[$i]</th></tr>\n";

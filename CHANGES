@@ -1,6 +1,7 @@
 
 * v0.2.5
 
+- small bugfixes in opus-website script
 - opus-pivoting works with multiple linkGrp's
 - improved opus-cat
 - po2opus/multipo2opus conversion tools added

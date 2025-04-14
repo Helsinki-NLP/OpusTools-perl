@@ -631,7 +631,7 @@ sub DownloadTable{
 	$TRGCOUNT++;
 	if ($TRGCOUNT>$MAXLANG){
 	    $SRCCOUNT=0;
-	    $HTML.="<tr><th></th>\n";
+	    $HTML.="<tr><th></th><th></th><th></th><th></th>\n";
 	    foreach my $l (@LANG){
 		$SRCCOUNT++;
 		if ($SRCCOUNT>$MAXLANG){

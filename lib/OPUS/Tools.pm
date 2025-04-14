@@ -700,7 +700,7 @@ sub find_zip_file{
 sub open_zip_file{
 
     my $zipfile = shift;
-    my ($CorpusName, $CorpusType) = @_;
+    my ($CorpusName, $CorpusType, $CorpusPassword) = @_;
     
     return $ZipFiles{$zipfile} if (exists $ZipFiles{$zipfile});
     
@@ -717,12 +717,22 @@ sub open_zip_file{
 	    $CorpusBase{$zipfile} = $CorpusName.'/'.$CorpusType;
 	}
 	else{
+	    my $zip = $ZipFiles{$zipfile};
 	    my $basename = basename($zipfile);
 	    $basename =~s/\.zip$//;
-	    my $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},
-						   $basename.'/'.'INFO');
-	    unless ($fh->{member}){
-		$fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},'INFO');
+	    my $file = $zip->memberNamed( $basename.'/'.'INFO' );
+	    my $fh; 
+	    if ($file){
+		$file->password($CorpusPassword) if ($CorpusPassword);
+		$file->desiredCompressionMethod( COMPRESSION_STORED );
+		$fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},$file);
+	    }
+	    else {
+		if ($file = $zip->memberNamed( 'INFO' )){
+		    $file->password($CorpusPassword) if ($CorpusPassword);
+		    $file->desiredCompressionMethod( COMPRESSION_STORED );
+		    $fh = Archive::Zip::MemberRead->new($ZipFiles{$zipfile},$file);
+		}
 	    }
 	    if ($fh->{member}){
 		my $line = $fh->getline();
@@ -750,14 +760,18 @@ sub open_zip_file{
 
 ## make some guesses to find a document if the path in doc does not exist
 sub open_opus_document{
-    my ($fh,$dir,$doc, $CorpusName, $CorpusType) = @_;
+    my ($fh,$dir,$doc, $CorpusName, $CorpusType, $CorpusPassword) = @_;
 
     my $zipfile = find_zip_file($dir,$doc);
-    my $zip = open_zip_file($zipfile, $CorpusName, $CorpusType);
+    my $zip = open_zip_file($zipfile, $CorpusName, $CorpusType, $CorpusPassword);
     if ($zip){
 	$doc =~s/\.gz$//;                      # remove .gz extension
 	my $FileBase = $CorpusBase{$zipfile};  # file base in the corpus
-	$$fh = Archive::Zip::MemberRead->new($zip,$FileBase.'/'.$doc);
+	my $file = $zip->memberNamed( $FileBase.'/'.$doc );
+	$file->password($CorpusPassword) if ($CorpusPassword);
+	$file->desiredCompressionMethod( COMPRESSION_STORED );
+	$$fh = Archive::Zip::MemberRead->new($zip,$file);
+	# $$fh = Archive::Zip::MemberRead->new($zip,$FileBase.'/'.$doc);
 	return 1 if ($$fh);
     }
 
